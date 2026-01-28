@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { MessageBox } from '../components/auth/MessageBox'
 import { PasswordInput } from '../components/auth/PasswordInput'
 import { PasswordStrengthMeter } from '../components/auth/PasswordStrengthMeter'
+import { ThemeMenu } from '../components/ui/ThemeMenu'
 import { useOtpTimer } from '../hooks/useOtpTimer'
 import { findUser, updateUserPassword, EMAIL_REGEX } from '../data/mockUsers'
 import { isStrongPassword } from '../utils/passwordValidator'
@@ -166,39 +167,23 @@ export function LoginPage() {
   const canResetPassword = isStrongPassword(newPw) && newPw === confirmPw && confirmPw.length > 0
 
   return (
-    <div className="min-h-screen grid place-items-center p-4 sm:p-5 md:p-6 lg:p-[22px] bg-[#0b1220] bg-[radial-gradient(1000px_600px_at_15%_0%,rgba(90,167,255,.18),transparent_60%),radial-gradient(900px_520px_at_85%_10%,rgba(47,208,122,.12),transparent_55%),radial-gradient(820px_520px_at_55%_45%,rgba(255,204,102,.07),transparent_60%)]">
+    <div className="login-shell min-h-screen grid place-items-center p-4 sm:p-5 md:p-6 lg:p-[22px] bg-[#0b1220] bg-[radial-gradient(1000px_600px_at_15%_0%,rgba(90,167,255,.18),transparent_60%),radial-gradient(900px_520px_at_85%_10%,rgba(47,208,122,.12),transparent_55%),radial-gradient(820px_520px_at_55%_45%,rgba(255,204,102,.07),transparent_60%)]">
+      <div className="absolute top-4 right-4">
+        <ThemeMenu />
+      </div>
       <div className="w-full max-w-[980px] grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-4 sm:gap-5 md:gap-6 lg:gap-[18px] rounded-[22px]">
         {/* Brand Panel */}
         <section className="border border-white/12 rounded-[22px] bg-gradient-to-b from-white/[0.06] to-white/[0.03] shadow-card overflow-hidden p-4 sm:p-5 md:p-6 lg:p-[26px] min-h-[auto] lg:min-h-[560px] relative">
-          <div className="flex items-center gap-3 sm:gap-4 md:gap-[12px]">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 md:w-[54px] md:h-[54px] rounded-[18px] border border-white/16 bg-white/[0.04] p-2 flex-shrink-0">
+          <div className="h-full flex flex-col items-center justify-center text-center gap-4 sm:gap-5 md:gap-6">
+            <div className="w-[140px] h-[140px] sm:w-[160px] sm:h-[160px] md:w-[176px] md:h-[176px] rounded-[28px] border border-white/16 bg-white/[0.06] p-5">
               <img src="/favicon.ico" alt="AssanPay Logo" className="w-full h-full object-contain" />
             </div>
-            <div>
-              <h1 className="m-0 text-lg sm:text-xl md:text-[22px] font-semibold">AssanPay</h1>
-              <p className="mt-1 sm:mt-2 md:mt-[4px] text-[#a9b7d4]/85 text-xs sm:text-[13px]">
-                Unified login (Admin + Merchant)
-              </p>
+            <div className="grid gap-2">
+              <h1 className="m-0 text-3xl sm:text-4xl md:text-5xl font-semibold tracking-[0.2em] text-[#eaf1ff]">
+                ASSANPAY
+              </h1>
+              <div className="text-xs sm:text-sm text-[#a9b7d4]/75">Secure access for Admin and Merchant portals.</div>
             </div>
-          </div>
-
-          <p className="mt-3 sm:mt-4 md:mt-3 text-sm sm:text-base text-[#a9b7d4]/90 leading-relaxed">
-            Role-based redirect: after successful login, <strong className="text-[#eaf1ff]">SuperAdmin</strong> goes to
-            Admin portal and <strong className="text-[#eaf1ff]">Merchant</strong> goes to Merchant portal.
-          </p>
-
-          <div className="mt-4 sm:mt-5 md:mt-[18px] p-3 sm:p-4 md:p-[14px] rounded-[18px] border border-white/10 bg-black/18 text-[#a9b7d4]/95 text-xs sm:text-[13px]">
-            <strong className="text-[#eaf1ff]">Reset password flow</strong>
-            <ul className="mt-2 sm:mt-3 md:mt-[10px] pl-4 sm:pl-5 md:pl-[18px] space-y-1 sm:space-y-2 md:space-y-[6px]">
-              <li>Enter email</li>
-              <li>Receive OTP (5 digits)</li>
-              <li>OTP expires in 1 minute</li>
-              <li>Set strong new password</li>
-            </ul>
-          </div>
-
-          <div className="mt-4 sm:mt-6 md:mt-0 absolute md:static left-4 sm:left-5 md:left-[26px] right-4 sm:right-5 md:right-[26px] bottom-4 sm:bottom-5 md:bottom-[20px] text-[#a9b7d4]/70 text-[10px] sm:text-xs md:text-[12px] leading-relaxed">
-            Production note: OTP must be generated + verified on server (not in browser).
           </div>
         </section>
 

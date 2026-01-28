@@ -8,9 +8,10 @@ import { Menu } from 'lucide-react'
  * @param {Function} props.onToggle - Toggle sidebar function
  * @param {React.ReactNode} props.actions - Optional action buttons/search
  */
-export function Topbar({ title, crumbs, onToggle, actions }) {
+export function Topbar({ title, crumbs, onToggle, actions, height = 'lg' }) {
+    const heightClass = height === 'xl' ? 'h-20 sm:h-24' : 'h-16 sm:h-20'
     return (
-        <header className="sticky top-0 z-30 flex h-16 sm:h-20 w-full items-center justify-between border-b border-white/10 bg-[#060b13]/85 backdrop-blur-md px-4 sm:px-6">
+        <header className={`sticky top-0 z-30 flex ${heightClass} w-full items-center justify-between border-b border-white/10 bg-[#060b13]/85 backdrop-blur-md px-4 sm:px-6`}>
             <div className="flex items-center gap-3">
                 <button
                     className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-[#a9b7d4] lg:hidden transition hover:bg-white/[0.08]"
@@ -21,10 +22,10 @@ export function Topbar({ title, crumbs, onToggle, actions }) {
                     <Menu size={20} />
                 </button>
                 <div className="flex flex-col">
-                    <h2 className="text-sm sm:text-lg font-bold text-[#eaf1ff] leading-none">
+                    <h2 className="text-base sm:text-xl font-bold text-[#eaf1ff] leading-none">
                         {title}
                     </h2>
-                    <div className="text-[10px] sm:text-xs text-[#a9b7d4]/60 mt-1">
+                    <div className="text-[11px] sm:text-sm text-[#a9b7d4]/60 mt-1">
                         {crumbs}
                     </div>
                 </div>

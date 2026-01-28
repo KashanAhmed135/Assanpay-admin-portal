@@ -10,13 +10,14 @@ import {
     ExportButton,
 } from '../components/merchant'
 import { DataTable } from '../components/ui/DataTable'
-import { StatusBadge } from '../components/ui/StatusBadge'
 import { Sidebar } from '../components/ui/Sidebar'
 import { Topbar } from '../components/ui/Topbar'
+import { ClearableSelect } from '../components/ui/ClearableSelect'
 import { MERCHANT_NAVIGATION } from '../config/merchantConfig'
 import { Search } from 'lucide-react'
+import { ThemeMenu } from '../components/ui/ThemeMenu'
 import { useHashRoute } from '../hooks/useHashRoute'
-import { fmtPKR, withinDate } from '../utils/helpers'
+import { withinDate } from '../utils/helpers'
 import { exportDataToCSV } from '../utils/csvExport'
 import { getDetailContent } from '../utils/detailUtils'
 import { getPageMeta } from '../config/pageConfig'
@@ -239,19 +240,20 @@ export function MerchantPortal() {
                         onToggle={() => setSidebarOpen(true)}
                         actions={
                             <>
-                                <div className="relative hidden md:block">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a9b7d4]/50" size={14} aria-hidden="true" />
-                                    <input
-                                        className="h-9 w-48 lg:w-64 rounded-xl border border-white/10 bg-black/20 pl-9 pr-4 text-xs text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50 placeholder:text-[#a9b7d4]/40"
-                                        id="globalSearch"
-                                        placeholder="Search..."
-                                        onKeyDown={handleGlobalSearchKey}
-                                    />
-                                </div>
-                                <a
-                                    className="flex h-9 items-center justify-center rounded-xl border border-[rgba(90,167,255,0.35)] bg-[rgba(90,167,255,0.18)] px-3 sm:px-4 text-xs sm:text-[13px] font-bold text-[#eaf1ff] transition hover:bg-[rgba(90,167,255,0.25)]"
-                                    href={pageMeta.btnHref}
-                                    id="contextBtn"
+                            <div className="relative hidden md:block">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a9b7d4]/50" size={14} aria-hidden="true" />
+                                <input
+                                    className="h-9 w-48 lg:w-64 rounded-xl border border-white/10 bg-black/20 pl-9 pr-4 text-xs text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50 placeholder:text-[#a9b7d4]/40"
+                                    id="globalSearch"
+                                    placeholder="Search..."
+                                    onKeyDown={handleGlobalSearchKey}
+                                />
+                            </div>
+                            <ThemeMenu />
+                            <a
+                                className="flex h-9 items-center justify-center rounded-xl border border-[rgba(90,167,255,0.35)] bg-[rgba(90,167,255,0.18)] px-3 sm:px-4 text-xs sm:text-[13px] font-bold text-[#eaf1ff] transition hover:bg-[rgba(90,167,255,0.25)]"
+                                href={pageMeta.btnHref}
+                                id="contextBtn"
                                 >
                                     {pageMeta.btnText}
                                 </a>
@@ -589,13 +591,19 @@ export function MerchantPortal() {
                                 </div>
                                 <div className="p-4">
                                     <FilterBar>
-                                        <select className="h-9 rounded-xl border border-white/10 bg-black/20 px-3 text-xs text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50" value={repType} onChange={(e) => setRepType(e.target.value)}>
+                                        <ClearableSelect
+                                            value={repType}
+                                            onChange={setRepType}
+                                            className="min-w-[190px]"
+                                            clearValue="Collections"
+                                            showClear={repType !== 'Collections'}
+                                        >
                                             <option value="Collections">Report Type: Collections</option>
                                             <option value="Settlements">Settlements</option>
                                             <option value="Refunds">Refunds</option>
                                             <option value="SubMerchants">Sub-Merchants</option>
                                             <option value="Users">Users</option>
-                                        </select>
+                                        </ClearableSelect>
                                         <DateRangeFilter
                                             fromValue={repFrom}
                                             toValue={repTo}
@@ -673,18 +681,14 @@ export function MerchantPortal() {
                                         >
                                             + Add User
                                         </button>
-                                        <select
-                                            className="h-9 rounded-xl border border-white/10 bg-black/20 px-3 text-xs text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50"
-                                            value={userRoleFilter}
-                                            onChange={(e) => setUserRoleFilter(e.target.value)}
-                                        >
+                                        <ClearableSelect value={userRoleFilter} onChange={setUserRoleFilter} className="min-w-[160px]">
                                             <option value="">Role: All</option>
                                             {USER_ROLE_OPTIONS.map((role) => (
                                                 <option key={role} value={role}>
                                                     {role}
                                                 </option>
                                             ))}
-                                        </select>
+                                        </ClearableSelect>
                                         <StatusFilter
                                             value={userStatusFilter}
                                             onChange={setUserStatusFilter}

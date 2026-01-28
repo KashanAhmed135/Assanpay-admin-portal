@@ -1,6 +1,6 @@
 export function Card({ title, right, children }) {
     return (
-        <article className="rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_10px_40px_rgba(0,0,0,0.35)] overflow-hidden w-full">
+        <article className="card-surface rounded-2xl border border-white/10 overflow-hidden w-full">
             <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b border-white/10">
                 <h3 className="text-sm sm:text-[15px] font-semibold text-[#eaf1ff]">{title}</h3>
                 {right}

@@ -15,11 +15,8 @@ export function StatusBadge({ value, status: statusProp }) {
     else if (warnList.includes(status)) styles = warn
     else if (badList.includes(status)) styles = bad
 
-    const colorClass = styles.split(' ').find(c => c.startsWith('text-')) || 'text-[#a9b7d4]'
-
     return (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border whitespace-nowrap ${styles}`}>
-            <span className={`w-1 h-1 rounded-full mr-1.5 ${colorClass.replace('text-', 'bg-')}`} />
+        <span className={`inline-flex items-center min-w-[92px] justify-center px-2 py-0.5 rounded-full text-[10px] font-medium border whitespace-nowrap ${styles}`}>
             {val || 'Unknown'}
         </span>
     )

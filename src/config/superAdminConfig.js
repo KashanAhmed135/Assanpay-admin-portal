@@ -26,6 +26,7 @@ export const PAGE_META = {
     'page-rbac': { title: 'Roles & Permissions', crumbs: 'Super Admin / Security / RBAC' },
     'page-inquiries': { title: 'Inquiries', crumbs: 'Super Admin / Support / Inquiries' },
     'page-audit-logs': { title: 'Audit Logs', crumbs: 'Super Admin / Compliance / Audit Logs' },
+    'page-settings': { title: 'Settings', crumbs: 'Super Admin / Settings' },
 }
 
 export const SUPER_ADMIN_NAVIGATION = [
@@ -64,18 +65,7 @@ export const SUPER_ADMIN_NAVIGATION = [
 export const STORAGE_KEY = 'assanpay-merchants'
 export const VIEW_KEY = 'assanpay-selected-merchant'
 
-export const PLACEHOLDER_PAGES = [
-    'page-submerchants',
-    'page-payments',
-    'page-settlements',
-    'page-refunds',
-    'page-payment-methods',
-    'page-limits',
-    'page-users',
-    'page-rbac',
-    'page-inquiries',
-    'page-audit-logs',
-]
+export const PLACEHOLDER_PAGES = []
 
 export function getPageMeta(page) {
     return PAGE_META[page] || PAGE_META['page-dashboard']
