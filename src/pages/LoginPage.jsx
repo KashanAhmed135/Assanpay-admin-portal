@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MessageBox } from '../components/auth/MessageBox'
 import { PasswordInput } from '../components/auth/PasswordInput'
 import { PasswordStrengthMeter } from '../components/auth/PasswordStrengthMeter'
 import { ThemeMenu } from '../components/ui/ThemeMenu'
 import { useOtpTimer } from '../hooks/useOtpTimer'
-import { findUser, updateUserPassword, EMAIL_REGEX } from '../data/mockUsers'
+import { updateUserPassword, EMAIL_REGEX } from '../data/mockUsers'
 import { isStrongPassword } from '../utils/passwordValidator'
+import { login } from '../utils/apiClient'
+import { getAuthClaims, isMerchantUser } from '../utils/auth'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -33,11 +35,18 @@ export function LoginPage() {
   // Message state
   const [msg, setMsg] = useState({ target: null, type: '', text: '' })
 
+  useEffect(() => {
+    const claims = getAuthClaims()
+    if (claims) {
+      navigate(isMerchantUser(claims) ? '/merchant' : '/admin')
+    }
+  }, [navigate])
+
   const showMsg = (target, text, type) => setMsg({ target, text, type })
   const clearMsg = (target) => setMsg((m) => (m.target === target ? { target: null, text: '', type: '' } : m))
 
   // Login handler
-  const handleLoginSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault()
     clearMsg('login')
 
@@ -54,18 +63,25 @@ export function LoginPage() {
       return
     }
 
-    const user = findUser(email, pw)
-    if (!user) {
-      showMsg('login', 'Invalid email or password.', 'err')
-      return
+    try {
+      await login(email, pw)
+      const claims = getAuthClaims()
+      const target = isMerchantUser(claims) ? '/merchant' : '/admin'
+      showMsg('login', 'Login successful. Redirecting...', 'ok')
+      setTimeout(() => {
+        navigate(target)
+      }, 350)
+    } catch (err) {
+      if (err?.code === 'NETWORK_ERROR') {
+        showMsg('login', err.message, 'err')
+        return
+      }
+      if (err?.data?.errorCode === 'INVALID_CREDENTIALS') {
+        showMsg('login', 'Email not found or password is incorrect.', 'err')
+        return
+      }
+      showMsg('login', err?.data?.message || err?.message || 'Login failed.', 'err')
     }
-
-    showMsg('login', 'Login successful. Redirecting…', 'ok')
-
-    setTimeout(() => {
-      if (user.role === 'SUPER_ADMIN') navigate('/admin')
-      else navigate('/merchant')
-    }, 350)
   }
 
   // Send OTP handler

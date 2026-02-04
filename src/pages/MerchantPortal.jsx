@@ -21,6 +21,9 @@ import { withinDate } from '../utils/helpers'
 import { exportDataToCSV } from '../utils/csvExport'
 import { getDetailContent } from '../utils/detailUtils'
 import { getPageMeta } from '../config/pageConfig'
+import { hasPermission } from '../utils/auth'
+import { clearAuthToken } from '../utils/apiClient'
+import { fetchMerchantPayments, fetchMerchantSubMerchants } from '../api/merchantApi'
 import {
     COLLECTION_COLUMNS,
     COLLECTION_CSV_COLUMNS,
@@ -35,7 +38,6 @@ import {
     REPORT_CSV_COLUMNS,
 } from '../config/tableColumns'
 import {
-    collectionsData,
     refundsData,
     settlementsData,
     subMerchantsData,
@@ -53,6 +55,9 @@ import {
 export function MerchantPortal() {
     const navigate = useNavigate()
     const [hash, setHash] = useHashRoute('dashboard')
+    const canCreateUser = hasPermission('CREATE_USER')
+    const [apiNotice, setApiNotice] = useState('')
+    const [paymentsNotice, setPaymentsNotice] = useState('')
 
     // UI State
     const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -107,25 +112,117 @@ export function MerchantPortal() {
         btnText: 'Create Sub-Merchant',
         btnHref: '#create-sub-merchant',
     })
+    const showContextButton =
+        pageMeta?.btnText &&
+        pageMeta?.btnHref &&
+        !(hash === 'users-roles' && !canCreateUser)
 
     // Filtered data
-    const latestCollections = useMemo(() => collectionsData.slice(0, 8), [])
+    const [merchantPayments, setMerchantPayments] = useState([])
+    const latestCollections = useMemo(() => merchantPayments.slice(0, 8), [merchantPayments])
+
+    const [subMerchants, setSubMerchants] = useState(subMerchantsData)
+
+    useEffect(() => {
+        let active = true
+
+        const loadSubMerchants = async () => {
+            try {
+                const page = await fetchMerchantSubMerchants({ page: 0, size: 200 })
+                const rows = Array.isArray(page?.content) ? page.content : []
+                const mapped = rows.map((row) => ({
+                    code: row.branchCode,
+                    name: row.branchName,
+                    status: row.blocked ? 'blocked' : 'active',
+                    vol30: 0,
+                    success: 0,
+                    merchantName: row.merchantName,
+                    createdAt: row.createdAt,
+                }))
+                if (active) {
+                    setSubMerchants(mapped)
+                }
+            } catch {
+                if (active) {
+                    setApiNotice('API not reachable, showing demo data.')
+                }
+            }
+        }
+
+        loadSubMerchants()
+        return () => {
+            active = false
+        }
+    }, [])
+
+
+    useEffect(() => {
+        let active = true
+
+        const loadPayments = async () => {
+            try {
+                const rawOrderId = colSearch.trim()
+                const orderId = rawOrderId && /^\d+$/.test(rawOrderId) ? Number(rawOrderId) : undefined
+                const page = await fetchMerchantPayments({
+                    status: colStatus || undefined,
+                    fromDate: colFrom || undefined,
+                    toDate: colTo || undefined,
+                    orderId,
+                    page: 0,
+                    size: 200,
+                })
+                const rows = Array.isArray(page?.content) ? page.content : []
+                const mapped = rows.map((r) => {
+                    const createdAt = r.createdAt ? new Date(r.createdAt) : null
+                    return {
+                        date: createdAt ? createdAt.toISOString().slice(0, 10) : '-',
+                        time: createdAt ? createdAt.toLocaleTimeString() : '-',
+                        orderId: r.orderId ?? '-',
+                        shop:
+                            r.subMerchantName ||
+                            r.subMerchantBranchName ||
+                            r.subMerchantBranchCode ||
+                            r.branchCode ||
+                            '-',
+                        amount: r.amount ?? 0,
+                        status: r.status || '-',
+                        providerRef: r.providerRef || r.providerReference || '-',
+                        _raw: r,
+                    }
+                })
+                if (active) {
+                    setMerchantPayments(mapped)
+                    setPaymentsNotice('')
+                }
+            } catch {
+                if (active) {
+                    setMerchantPayments([])
+                    setPaymentsNotice('Payments API not reachable, showing empty list.')
+                }
+            }
+        }
+
+        loadPayments()
+        return () => {
+            active = false
+        }
+    }, [colFrom, colTo, colStatus, colSearch])
 
     const filteredSubMerchants = useMemo(() => {
         const s = subSearch.toLowerCase()
-        return subMerchantsData
+        return subMerchants
             .filter((r) => !subStatus || r.status === subStatus)
             .filter((r) => !s || (r.code + ' ' + r.name).toLowerCase().includes(s))
-    }, [subSearch, subStatus])
+    }, [subMerchants, subSearch, subStatus])
 
     const filteredCollections = useMemo(() => {
         const q = colSearch.toLowerCase()
-        return collectionsData
+        return merchantPayments
             .filter((r) => withinDate(r.date, colFrom, colTo))
             .filter((r) => !colStatus || r.status === colStatus)
             .filter((r) => !colShop || r.shop === colShop)
             .filter((r) => !q || (r.orderId + ' ' + r.providerRef).toLowerCase().includes(q))
-    }, [colFrom, colTo, colStatus, colShop, colSearch])
+    }, [merchantPayments, colFrom, colTo, colStatus, colShop, colSearch])
 
     const filteredRefunds = useMemo(() => {
         const q = rfSearch.toLowerCase()
@@ -171,10 +268,10 @@ export function MerchantPortal() {
 
     const handleOpenDetail = (type, id, backHash) => {
         const dataMap = {
-            collection: collectionsData,
+            collection: merchantPayments,
             refund: refundsData,
             settlement: settlementsData,
-            sub: subMerchantsData,
+            sub: subMerchants,
             report: reportsData,
             user: usersData,
         }
@@ -196,7 +293,10 @@ export function MerchantPortal() {
         setHash('detail')
     }
 
-    const handleLogout = () => navigate('/')
+    const handleLogout = () => {
+        clearAuthToken()
+        navigate('/')
+    }
 
     const handleGlobalSearchKey = (e) => {
         if (e.key === 'Enter') {
@@ -250,18 +350,30 @@ export function MerchantPortal() {
                                 />
                             </div>
                             <ThemeMenu />
-                            <a
-                                className="flex h-9 items-center justify-center rounded-xl border border-[rgba(90,167,255,0.35)] bg-[rgba(90,167,255,0.18)] px-3 sm:px-4 text-xs sm:text-[13px] font-bold text-[#eaf1ff] transition hover:bg-[rgba(90,167,255,0.25)]"
-                                href={pageMeta.btnHref}
-                                id="contextBtn"
+                            {showContextButton && (
+                                <a
+                                    className="flex h-9 items-center justify-center rounded-xl border border-[rgba(90,167,255,0.35)] bg-[rgba(90,167,255,0.18)] px-3 sm:px-4 text-xs sm:text-[13px] font-bold text-[#eaf1ff] transition hover:bg-[rgba(90,167,255,0.25)]"
+                                    href={pageMeta.btnHref}
+                                    id="contextBtn"
                                 >
                                     {pageMeta.btnText}
                                 </a>
+                            )}
                             </>
                         }
                     />
 
                     <section className="p-4 sm:p-6 lg:p-8 space-y-6">
+                        {apiNotice && (
+                            <div className="rounded-xl border border-yellow-400/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100">
+                                {apiNotice}
+                            </div>
+                        )}
+                        {paymentsNotice && (
+                            <div className="rounded-xl border border-yellow-400/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100">
+                                {paymentsNotice}
+                            </div>
+                        )}
                         {/* Dashboard Page */}
                         <div id="dashboard" className={hash === 'dashboard' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-500' : 'hidden'}>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -671,16 +783,18 @@ export function MerchantPortal() {
                                 </div>
                                 <div className="p-4">
                                     <FilterBar>
-                                        <button
-                                            className="h-9 px-4 rounded-xl border border-[rgba(90,167,255,0.35)] bg-[rgba(90,167,255,0.18)] hover:bg-[rgba(90,167,255,0.25)] transition text-xs font-medium text-[#eaf1ff]"
-                                            type="button"
-                                            onClick={() => {
-                                                // eslint-disable-next-line no-alert
-                                                alert('Add User (UI demo).')
-                                            }}
-                                        >
-                                            + Add User
-                                        </button>
+                                        {canCreateUser && (
+                                            <button
+                                                className="h-9 px-4 rounded-xl border border-[rgba(90,167,255,0.35)] bg-[rgba(90,167,255,0.18)] hover:bg-[rgba(90,167,255,0.25)] transition text-xs font-medium text-[#eaf1ff]"
+                                                type="button"
+                                                onClick={() => {
+                                                    // eslint-disable-next-line no-alert
+                                                    alert('Add User (UI demo).')
+                                                }}
+                                            >
+                                                + Add User
+                                            </button>
+                                        )}
                                         <ClearableSelect value={userRoleFilter} onChange={setUserRoleFilter} className="min-w-[160px]">
                                             <option value="">Role: All</option>
                                             {USER_ROLE_OPTIONS.map((role) => (

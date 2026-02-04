@@ -25,6 +25,8 @@ export const PAYMENT_COLUMNS = [
     { key: 'orderId', label: 'Order ID' },
     { key: 'amount', label: 'Amount', render: (row) => fmtPKR(row.amount) },
     { key: 'paymentMethod', label: 'Payment Method' },
+    { key: 'status', label: 'Status' },
+    { key: 'createdAt', label: 'Created At' },
 ]
 
 export const REFUND_ADMIN_COLUMNS = [
@@ -161,9 +163,11 @@ export const SETTLEMENT_REPORT_COLUMNS = [
 ]
 
 export const SUB_MERCHANT_ADMIN_COLUMNS = [
+    { key: 'merchantId', label: 'Merchant ID' },
     { key: 'branchCode', label: 'Branch Code' },
     { key: 'branchName', label: 'Branch Name' },
     { key: 'merchantName', label: 'Merchant Name' },
+    { key: 'userEmail', label: 'User Email' },
     { key: 'status', label: 'Status' },
     { key: 'createdAt', label: 'Created At' },
 ]

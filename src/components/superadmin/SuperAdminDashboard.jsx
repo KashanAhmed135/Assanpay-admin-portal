@@ -1,9 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -13,8 +17,10 @@ import {
   Cell,
 } from 'recharts'
 import { Card, Pill } from '../ui/Card'
+import { ClearableInput } from '../ui/ClearableInput'
 import { StatusBadge } from '../ui/StatusBadge'
 import { fmtPKR } from '../../utils/helpers'
+import { fetchAdminDashboardSummary } from '../../api/adminApi'
 
 const DASHBOARD_MOCK_BY_PRESET = {
   today: {
@@ -159,6 +165,7 @@ const METRIC_CARDS = [
   { key: 'totalPaymentVolume', label: 'Total Payment Volume', format: 'currency' },
   { key: 'totalSettlements', label: 'Total Settlements' },
   { key: 'dueSettlementAmount', label: 'Due Settlement Amount', format: 'currency' },
+  { key: 'unsettledSuccessfulPayments', label: 'Unsettled Successful Payments' },
   { key: 'totalRefunds', label: 'Total Refunds' },
 ]
 
@@ -369,59 +376,130 @@ export function DashboardKpis() {
   )
 }
 
-export function DashboardInsights({ dateLabel, datePreset }) {
-  const trendData = VOLUME_TREND_BY_PRESET[datePreset] || VOLUME_TREND_BY_PRESET.last30
+export function DashboardInsights({ dateLabel, datePreset, trendDataOverride, dashboardMetrics }) {
+  const [trendChartType, setTrendChartType] = useState('area')
+  const [successChartType, setSuccessChartType] = useState('pie')
+  const trendData = Array.isArray(trendDataOverride) && trendDataOverride.length > 0
+    ? trendDataOverride
+    : (VOLUME_TREND_BY_PRESET[datePreset] || VOLUME_TREND_BY_PRESET.last30)
   const alerts = ALERTS_BY_PRESET[datePreset] || ALERTS_BY_PRESET.last30
   const alertCount = alerts.length
   const trendTotal = trendData.reduce((acc, row) => acc + row.transactions, 0)
   const avgTicket = Math.round(trendTotal / Math.max(1, trendData.length))
-  const peakWeek = trendData.reduce(
-    (best, row) => (row.transactions > best.transactions ? row : best),
-    trendData[0]
-  )
-  const successRate = Math.round((trendData.reduce((acc, row) => acc + row.success, 0) / trendData.length) * 1000) / 10
+  const peakWeek = trendData.length
+    ? trendData.reduce(
+      (best, row) => (row.transactions > best.transactions ? row : best),
+      trendData[0]
+    )
+    : { label: '-' }
+  const successRate = (() => {
+    const total = Number(dashboardMetrics?.totalPayments ?? 0)
+    const success = Number(dashboardMetrics?.successfulPayments ?? 0)
+    if (!total) return 0
+    return Math.round((success / total) * 1000) / 10
+  })()
+  const successPct = successRate
+  const failedPct = Math.max(0, Math.round((100 - successRate) * 10) / 10)
   const successChart = [
-    { name: 'Success', value: Math.round(successRate * 10), color: '#22c55e' },
-    { name: 'Failed', value: Math.max(0, Math.round(1000 - successRate * 10)), color: '#f87171' },
+    { name: 'Success', value: successPct, color: '#22c55e' },
+    { name: 'Failed', value: failedPct, color: '#f87171' },
   ]
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 sm:gap-4 w-full">
       <div className="xl:col-span-8">
-        <Card title="Transaction Trend" right={<Pill>{dateLabel}</Pill>}>
+        <Card
+          title="Transaction Trend"
+          right={(
+            <div className="flex items-center gap-2">
+              <Pill>{dateLabel}</Pill>
+              <select
+                className="h-7 rounded-lg border border-white/10 bg-black/20 px-2 text-[11px] text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50"
+                value={trendChartType}
+                onChange={(e) => setTrendChartType(e.target.value)}
+              >
+                <option value="area" className="bg-[#0b1220]">Area</option>
+                <option value="bar" className="bg-[#0b1220]">Bar</option>
+                <option value="line" className="bg-[#0b1220]">Line</option>
+              </select>
+            </div>
+          )}
+        >
           <div className="h-[220px] sm:h-[280px] rounded-xl border border-white/10 bg-black/20 px-3 py-2">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="trendVolume" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#5aa7ff" stopOpacity={0.32} />
-                    <stop offset="95%" stopColor="#5aa7ff" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                <XAxis dataKey="label" stroke="#a9b7d4" tickLine={false} axisLine={false} />
-                <YAxis stroke="#a9b7d4" tickLine={false} axisLine={false} width={36} />
-                <Tooltip
-                  contentStyle={{
-                    background: '#1f2435',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: 12,
-                    color: '#eaf1ff',
-                  }}
-                  labelStyle={{ color: '#a9b7d4' }}
-                  formatter={(value, name) => {
-                    if (name === 'success') return [`${Math.round(Number(value) * 100)}%`, 'Success']
-                    return [Number(value).toLocaleString(), 'Transactions']
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="transactions"
-                  stroke="#5aa7ff"
-                  strokeWidth={2}
-                  fill="url(#trendVolume)"
-                />
-              </AreaChart>
+              {trendChartType === 'bar' ? (
+                <BarChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                  <XAxis dataKey="label" stroke="#a9b7d4" tickLine={false} axisLine={false} />
+                  <YAxis stroke="#a9b7d4" tickLine={false} axisLine={false} width={36} />
+                  <Tooltip
+                    contentStyle={{
+                      background: '#1f2435',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: 12,
+                      color: '#eaf1ff',
+                    }}
+                    labelStyle={{ color: '#a9b7d4' }}
+                    formatter={(value, name) => {
+                      if (name === 'success') return [`${Math.round(Number(value) * 100)}%`, 'Success']
+                      return [Number(value).toLocaleString(), 'Transactions']
+                    }}
+                  />
+                  <Bar dataKey="transactions" fill="#5aa7ff" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              ) : trendChartType === 'line' ? (
+                <LineChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                  <XAxis dataKey="label" stroke="#a9b7d4" tickLine={false} axisLine={false} />
+                  <YAxis stroke="#a9b7d4" tickLine={false} axisLine={false} width={36} />
+                  <Tooltip
+                    contentStyle={{
+                      background: '#1f2435',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: 12,
+                      color: '#eaf1ff',
+                    }}
+                    labelStyle={{ color: '#a9b7d4' }}
+                    formatter={(value, name) => {
+                      if (name === 'success') return [`${Math.round(Number(value) * 100)}%`, 'Success']
+                      return [Number(value).toLocaleString(), 'Transactions']
+                    }}
+                  />
+                  <Line type="monotone" dataKey="transactions" stroke="#5aa7ff" strokeWidth={2} dot={false} />
+                </LineChart>
+              ) : (
+                <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="trendVolume" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#5aa7ff" stopOpacity={0.32} />
+                      <stop offset="95%" stopColor="#5aa7ff" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                  <XAxis dataKey="label" stroke="#a9b7d4" tickLine={false} axisLine={false} />
+                  <YAxis stroke="#a9b7d4" tickLine={false} axisLine={false} width={36} />
+                  <Tooltip
+                    contentStyle={{
+                      background: '#1f2435',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: 12,
+                      color: '#eaf1ff',
+                    }}
+                    labelStyle={{ color: '#a9b7d4' }}
+                    formatter={(value, name) => {
+                      if (name === 'success') return [`${Math.round(Number(value) * 100)}%`, 'Success']
+                      return [Number(value).toLocaleString(), 'Transactions']
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="transactions"
+                    stroke="#5aa7ff"
+                    strokeWidth={2}
+                    fill="url(#trendVolume)"
+                  />
+                </AreaChart>
+              )}
             </ResponsiveContainer>
           </div>
           <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
@@ -472,26 +550,62 @@ export function DashboardInsights({ dateLabel, datePreset }) {
             </div>
           </Card>
 
-          <Card title="Total Success Rate">
+          <Card
+            title="Total Success Rate"
+            right={(
+              <select
+                className="h-7 rounded-lg border border-white/10 bg-black/20 px-2 text-[11px] text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50"
+                value={successChartType}
+                onChange={(e) => setSuccessChartType(e.target.value)}
+              >
+                <option value="pie" className="bg-[#0b1220]">Pie</option>
+                <option value="bar" className="bg-[#0b1220]">Bar</option>
+              </select>
+            )}
+          >
             <div className="flex items-center gap-4">
               <div className="h-[120px] w-[120px] rounded-full bg-black/20 border border-white/10 grid place-items-center">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={successChart}
-                      dataKey="value"
-                      innerRadius={38}
-                      outerRadius={54}
-                      paddingAngle={3}
-                      startAngle={90}
-                      endAngle={-270}
-                    >
-                      {successChart.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
+                {successChartType === 'bar' ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={successChart} margin={{ top: 8, right: 6, left: 6, bottom: 0 }}>
+                      <XAxis dataKey="name" hide />
+                      <YAxis hide domain={[0, 100]} />
+                      <Tooltip
+                        contentStyle={{
+                          background: '#1f2435',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          borderRadius: 12,
+                          color: '#eaf1ff',
+                        }}
+                        labelStyle={{ color: '#a9b7d4' }}
+                        formatter={(value) => [`${Number(value).toFixed(1)}%`, 'Rate']}
+                      />
+                      <Bar dataKey="value" radius={[6, 6, 6, 6]}>
+                        {successChart.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={successChart}
+                        dataKey="value"
+                        innerRadius={38}
+                        outerRadius={54}
+                        paddingAngle={3}
+                        startAngle={90}
+                        endAngle={-270}
+                      >
+                        {successChart.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
               </div>
               <div className="flex-1">
                 <div className="text-3xl font-semibold">{successRate}%</div>
@@ -520,8 +634,128 @@ export function DashboardSection() {
   const [customOpen, setCustomOpen] = useState(false)
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
+  const [dashboardMerchantId, setDashboardMerchantId] = useState('')
+  const [dashboardMerchantName, setDashboardMerchantName] = useState('')
+  const [dashboardMerchantEmail, setDashboardMerchantEmail] = useState('')
+  const [chartType, setChartType] = useState('area')
+  const [dashboardData, setDashboardData] = useState(null)
+  const [chartData, setChartData] = useState([])
+  const [unsettledSummary, setUnsettledSummary] = useState(null)
+  const [dashboardError, setDashboardError] = useState('')
+  const [chartFailed, setChartFailed] = useState(false)
+  const [chartEmpty, setChartEmpty] = useState(false)
 
-  const data = useMemo(() => DASHBOARD_MOCK_BY_PRESET[datePreset] || DASHBOARD_MOCK_BY_PRESET.all, [datePreset])
+  const baseData = useMemo(
+    () => dashboardData || DASHBOARD_MOCK_BY_PRESET[datePreset] || DASHBOARD_MOCK_BY_PRESET.all,
+    [dashboardData, datePreset]
+  )
+
+  const data = useMemo(
+    () => ({
+      ...baseData,
+      unsettledSuccessfulPayments: unsettledSummary?.totalCount ?? baseData.unsettledSuccessfulPayments ?? 0,
+    }),
+    [baseData, unsettledSummary]
+  )
+
+  const chartRows = chartFailed ? MAIN_CHART : chartData
+
+  const formatDate = (date) => {
+    const yyyy = date.getFullYear()
+    const mm = String(date.getMonth() + 1).padStart(2, '0')
+    const dd = String(date.getDate()).padStart(2, '0')
+    return `${yyyy}-${mm}-${dd}`
+  }
+
+  const resolveRange = () => {
+    const today = new Date()
+    if (datePreset === 'all') return null
+    if (datePreset === 'custom') {
+      if (!customFrom || !customTo) return null
+      return { from: customFrom, to: customTo }
+    }
+
+    if (datePreset === 'today') {
+      const t = formatDate(today)
+      return { from: t, to: t }
+    }
+    if (datePreset === 'yesterday') {
+      const d = new Date(today)
+      d.setDate(d.getDate() - 1)
+      const t = formatDate(d)
+      return { from: t, to: t }
+    }
+    if (datePreset === 'last7') {
+      const from = new Date(today)
+      from.setDate(from.getDate() - 6)
+      return { from: formatDate(from), to: formatDate(today) }
+    }
+    if (datePreset === 'last30') {
+      const from = new Date(today)
+      from.setDate(from.getDate() - 29)
+      return { from: formatDate(from), to: formatDate(today) }
+    }
+    if (datePreset === 'thisMonth') {
+      const from = new Date(today.getFullYear(), today.getMonth(), 1)
+      return { from: formatDate(from), to: formatDate(today) }
+    }
+    if (datePreset === 'lastMonth') {
+      const from = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+      const to = new Date(today.getFullYear(), today.getMonth(), 0)
+      return { from: formatDate(from), to: formatDate(to) }
+    }
+    return null
+  }
+
+  useEffect(() => {
+    let active = true
+    const range = resolveRange()
+    const merchantIdValue = dashboardMerchantId.trim()
+    const dashboardParams = {
+      merchantId: merchantIdValue || undefined,
+      merchantName: dashboardMerchantName.trim() || undefined,
+      merchantEmail: dashboardMerchantEmail.trim() || undefined,
+    }
+    if (range) {
+      dashboardParams.fromDate = range.from
+      dashboardParams.toDate = range.to
+    }
+
+    const loadDashboard = async () => {
+      try {
+        const res = await fetchAdminDashboardSummary(dashboardParams)
+        if (active) {
+          const dashboard = res?.dashboard || null
+          const chartRows = Array.isArray(res?.paymentChart) ? res.paymentChart : []
+          const mappedChart = chartRows.map((row) => ({
+            day: row.date,
+            transactions: row.totalCount,
+            amount: row.totalAmount,
+          }))
+          setDashboardData(dashboard)
+          setChartData(mappedChart)
+          setChartFailed(false)
+          setChartEmpty(mappedChart.length === 0)
+          setUnsettledSummary(res?.unsettledSummary || null)
+          setDashboardError('')
+        }
+      } catch (err) {
+        if (active) {
+          const message =
+            err?.data?.message || err?.message || 'Failed to load dashboard API.'
+          setDashboardError(message)
+          setChartFailed(true)
+          setChartEmpty(false)
+        }
+      }
+    }
+
+    loadDashboard()
+
+    return () => {
+      active = false
+    }
+  }, [datePreset, customFrom, customTo, dashboardMerchantId, dashboardMerchantName, dashboardMerchantEmail])
 
   const getValue = (key, format) => {
     const value = data[key]
@@ -541,6 +775,7 @@ export function DashboardSection() {
     totalPaymentVolume: 7.4,
     totalSettlements: 2.2,
     dueSettlementAmount: -3.5,
+    unsettledSuccessfulPayments: 0.0,
     totalRefunds: 1.0,
   }
 
@@ -555,8 +790,15 @@ export function DashboardSection() {
     custom: 'Custom range',
   }[datePreset] || 'All time'
 
+  const apiError = dashboardError
+
   return (
     <div className="space-y-4 sm:space-y-5 w-full">
+      {apiError && (
+        <div className="rounded-xl border border-yellow-400/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-100">
+          {apiError}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <select
           className="h-9 min-w-[180px] rounded-xl border border-white/10 bg-black/20 px-3 text-xs text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50"
@@ -578,43 +820,114 @@ export function DashboardSection() {
           <option value="all" className="bg-[#0b1220]">All Time</option>
           <option value="custom" className="bg-[#0b1220]">Custom Date</option>
         </select>
+        <select
+          className="h-9 min-w-[140px] rounded-xl border border-white/10 bg-black/20 px-3 text-xs text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50"
+          value={chartType}
+          onChange={(e) => setChartType(e.target.value)}
+        >
+          <option value="area" className="bg-[#0b1220]">Area</option>
+          <option value="bar" className="bg-[#0b1220]">Bar</option>
+          <option value="line" className="bg-[#0b1220]">Line</option>
+        </select>
+        <ClearableInput
+          className="min-w-[160px]"
+          inputClassName="h-9 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-xs text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50"
+          placeholder="Merchant ID"
+          value={dashboardMerchantId}
+          onChange={(e) => setDashboardMerchantId(e.target.value)}
+        />
+        <ClearableInput
+          className="min-w-[200px]"
+          inputClassName="h-9 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-xs text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50"
+          placeholder="Merchant Name"
+          value={dashboardMerchantName}
+          onChange={(e) => setDashboardMerchantName(e.target.value)}
+        />
+        <ClearableInput
+          className="min-w-[220px]"
+          inputClassName="h-9 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-xs text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50"
+          placeholder="Merchant Email"
+          value={dashboardMerchantEmail}
+          onChange={(e) => setDashboardMerchantEmail(e.target.value)}
+        />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_0.6fr] gap-4 w-full">
         <Card title="Payments Overview" right={<Pill>{presetLabel}</Pill>}>
           <div className="text-sm text-[#a9b7d4]/70 mb-3">Total Transactions</div>
           <div className="text-3xl font-semibold">{getValue('totalPayments')}</div>
-          <div className="mt-4 h-[220px] sm:h-[260px] rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+          <div className="relative mt-4 h-[220px] sm:h-[260px] rounded-xl border border-white/10 bg-black/20 px-3 py-2">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={MAIN_CHART} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#5aa7ff" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#5aa7ff" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                <XAxis dataKey="day" stroke="#a9b7d4" tickLine={false} axisLine={false} />
-                <YAxis stroke="#a9b7d4" tickLine={false} axisLine={false} width={30} />
-                <Tooltip
-                  contentStyle={{
-                    background: '#1f2435',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: 12,
-                    color: '#eaf1ff',
-                  }}
-                  labelStyle={{ color: '#a9b7d4' }}
-                  formatter={(value) => [Number(value).toLocaleString(), 'Transactions']}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="transactions"
-                  stroke="#5aa7ff"
-                  strokeWidth={2}
-                  fill="url(#colorVolume)"
-                />
-              </AreaChart>
+              {chartType === 'bar' ? (
+                <BarChart data={chartRows} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                  <XAxis dataKey="day" stroke="#a9b7d4" tickLine={false} axisLine={false} />
+                  <YAxis stroke="#a9b7d4" tickLine={false} axisLine={false} width={30} />
+                  <Tooltip
+                    contentStyle={{
+                      background: '#1f2435',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: 12,
+                      color: '#eaf1ff',
+                    }}
+                    labelStyle={{ color: '#a9b7d4' }}
+                    formatter={(value) => [Number(value).toLocaleString(), 'Transactions']}
+                  />
+                  <Bar dataKey="transactions" fill="#5aa7ff" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              ) : chartType === 'line' ? (
+                <LineChart data={chartRows} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                  <XAxis dataKey="day" stroke="#a9b7d4" tickLine={false} axisLine={false} />
+                  <YAxis stroke="#a9b7d4" tickLine={false} axisLine={false} width={30} />
+                  <Tooltip
+                    contentStyle={{
+                      background: '#1f2435',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: 12,
+                      color: '#eaf1ff',
+                    }}
+                    labelStyle={{ color: '#a9b7d4' }}
+                    formatter={(value) => [Number(value).toLocaleString(), 'Transactions']}
+                  />
+                  <Line type="monotone" dataKey="transactions" stroke="#5aa7ff" strokeWidth={2} dot={false} />
+                </LineChart>
+              ) : (
+                <AreaChart data={chartRows} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#5aa7ff" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#5aa7ff" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                  <XAxis dataKey="day" stroke="#a9b7d4" tickLine={false} axisLine={false} />
+                  <YAxis stroke="#a9b7d4" tickLine={false} axisLine={false} width={30} />
+                  <Tooltip
+                    contentStyle={{
+                      background: '#1f2435',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: 12,
+                      color: '#eaf1ff',
+                    }}
+                    labelStyle={{ color: '#a9b7d4' }}
+                    formatter={(value) => [Number(value).toLocaleString(), 'Transactions']}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="transactions"
+                    stroke="#5aa7ff"
+                    strokeWidth={2}
+                    fill="url(#colorVolume)"
+                  />
+                </AreaChart>
+              )}
             </ResponsiveContainer>
+            {chartEmpty && !chartFailed && (
+              <div className="absolute inset-0 grid place-items-center text-xs text-[#a9b7d4]/70">
+                No chart data for selected range.
+              </div>
+            )}
           </div>
         </Card>
 
@@ -649,7 +962,12 @@ export function DashboardSection() {
           </Card>
         ))}
       </div>
-      <DashboardInsights dateLabel={presetLabel} datePreset={datePreset} />
+      <DashboardInsights
+        dateLabel={presetLabel}
+        datePreset={datePreset}
+        trendDataOverride={chartRows.map((row) => ({ label: row.day, transactions: row.transactions }))}
+        dashboardMetrics={data}
+      />
       <div className="pt-2 text-center text-xs text-[#a9b7d4]/70">Ac AssanPay Admin Portal UI Template (React)</div>
 
       {customOpen && (

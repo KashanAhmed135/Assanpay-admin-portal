@@ -3,35 +3,37 @@ import { ClearableInput } from '../ui/ClearableInput'
 import { StatusBadge } from '../ui/StatusBadge'
 
 export function MerchantsFilters({
-  filterBusiness,
-  filterLegal,
+  filterMerchantEmail,
+  filterMerchantName,
   filterMerchantId,
   filterStatus,
-  onFilterBusiness,
-  onFilterLegal,
+  filterSettlementMode,
+  onFilterMerchantEmail,
+  onFilterMerchantName,
   onFilterMerchantId,
   onFilterStatus,
+  onFilterSettlementMode,
   onCreate,
 }) {
   return (
     <div className="flex flex-col gap-3 text-[#a9b7d4]/85">
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-2">
         <div className="flex items-center gap-2 px-3 h-10 rounded-xl border border-white/10 bg-black/20">
           <ClearableInput
             className="w-full"
             inputClassName="bg-transparent outline-none text-sm w-full placeholder:text-[#a9b7d4]/55"
-            placeholder="Business name"
-            value={filterBusiness}
-            onChange={(e) => onFilterBusiness(e.target.value)}
+            placeholder="Merchant Email"
+            value={filterMerchantEmail}
+            onChange={(e) => onFilterMerchantEmail(e.target.value)}
           />
         </div>
         <div className="flex items-center gap-2 px-3 h-10 rounded-xl border border-white/10 bg-black/20">
           <ClearableInput
             className="w-full"
             inputClassName="bg-transparent outline-none text-sm w-full placeholder:text-[#a9b7d4]/55"
-            placeholder="Legal name"
-            value={filterLegal}
-            onChange={(e) => onFilterLegal(e.target.value)}
+            placeholder="Merchant Name"
+            value={filterMerchantName}
+            onChange={(e) => onFilterMerchantName(e.target.value)}
           />
         </div>
         <div className="flex items-center gap-2 px-3 h-10 rounded-xl border border-white/10 bg-black/20">
@@ -67,6 +69,30 @@ export function MerchantsFilters({
             </button>
           )}
         </div>
+        <div className="relative flex items-center gap-2 px-3 h-10 rounded-xl border border-white/10 bg-black/20">
+          <select
+            id="filterSettlementMode"
+            name="filterSettlementMode"
+            className="bg-transparent outline-none text-sm text-[#a9b7d4]/80 w-full pr-12"
+            value={filterSettlementMode}
+            onChange={(e) => onFilterSettlementMode(e.target.value)}
+            aria-label="Settlement mode filter"
+          >
+            <option value="" className="bg-[#0b1220] text-[#eaf1ff]">Settlement: All</option>
+            <option value="AUTO" className="bg-[#0b1220] text-[#eaf1ff]">Auto</option>
+            <option value="MANUAL" className="bg-[#0b1220] text-[#eaf1ff]">Manual</option>
+          </select>
+          {filterSettlementMode && (
+            <button
+              type="button"
+              aria-label="Clear settlement mode filter"
+              className="absolute right-8 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full border border-white/10 bg-white/[0.04] text-[#a9b7d4] hover:text-[#eaf1ff] hover:bg-white/[0.08] transition grid place-items-center"
+              onClick={() => onFilterSettlementMode('')}
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
       </div>
       <div className="flex justify-end">
         <button
@@ -91,7 +117,6 @@ export function MerchantsTable({ merchants, actionMenuId, onToggleActionMenu }) 
             <th className="py-2 pr-3">Merchant ID</th>
             <th className="py-2 pr-3">Legal</th>
             <th className="py-2 pr-3">Email</th>
-            <th className="py-2 pr-3">Phone</th>
             <th className="py-2 pr-3">Admin</th>
             <th className="py-2 pr-3">Status</th>
             <th className="py-2 pr-3 text-right">Actions</th>
@@ -110,7 +135,6 @@ export function MerchantsTable({ merchants, actionMenuId, onToggleActionMenu }) 
               <td className="py-2 pr-3">{m.mid}</td>
               <td className="py-2 pr-3">{m.legal_name}</td>
               <td className="py-2 pr-3">{m.business_email}</td>
-              <td className="py-2 pr-3">{m.business_phone}</td>
               <td className="py-2 pr-3">{m.admin_name}</td>
               <td className="py-2 pr-3">
                 <StatusBadge status={m.status} />

@@ -122,8 +122,8 @@ export const settlementReportsData = readStorage('assanpay:settlementReports', [
 ])
 
 export const adminSubMerchantsData = readStorage('assanpay:adminSubMerchants', [
-    { branchCode: 'BR-01', branchName: 'Defence', merchantName: 'PIQ PAY', status: 'ACTIVE', createdAt: '2026-01-15' },
-    { branchCode: 'BR-02', branchName: 'Clifton', merchantName: 'DERIV', status: 'ACTIVE', createdAt: '2026-01-17' },
+    { merchantId: '1001', branchCode: 'BR-01', branchName: 'Defence', merchantName: 'PIQ PAY', userEmail: 'branch.defence@piqpay.com', status: 'active', createdAt: '2026-01-15' },
+    { merchantId: '1002', branchCode: 'BR-02', branchName: 'Clifton', merchantName: 'DERIV', userEmail: '', status: 'active', createdAt: '2026-01-17' },
 ])
 
 export const adminUsersData = readStorage('assanpay:adminUsers', [

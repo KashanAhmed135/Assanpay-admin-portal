@@ -3,9 +3,12 @@ import { parsePhoneNumberFromString } from 'libphonenumber-js/max'
 export const DEFAULT_PHONE_COUNTRY = 'PK'
 
 export const EMAIL_PATTERN = '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$'
-export const NAME_PATTERN = "^[A-Za-z][A-Za-z0-9.'\\-\\s]{1,58}$"
-export const USERNAME_PATTERN = '^[A-Za-z][A-Za-z0-9_]{2,29}$'
+export const NAME_PATTERN = "^[A-Za-z0-9][A-Za-z0-9 .,'&()\\-\\/]{1,78}$"
+export const USERNAME_PATTERN = '^[A-Za-z0-9][A-Za-z0-9._@-]{2,59}$'
 export const PASSWORD_PATTERN = '^(?=.*[A-Za-z])(?=.*\\d).{8,}$'
+export const COMMISSION_PERCENT_PATTERN = '^(100(\\.0{1,2})?|\\d{1,2}(\\.\\d{1,2})?)$'
+export const COMMISSION_AMOUNT_PATTERN = '^\\d{1,9}(\\.\\d{1,2})?$'
+export const LIMIT_AMOUNT_PATTERN = '^\\d{1,12}(\\.\\d{1,2})?$'
 
 export const ALLOWED_PHONE_TYPES = new Set(['MOBILE', 'FIXED_LINE_OR_MOBILE'])
 
@@ -51,11 +54,11 @@ export function validateMerchantFormData(data, phoneError) {
         errors.push(phoneError)
     }
 
-    if (!validateEmail(data.business_email)) {
+    if (data.business_email && !validateEmail(data.business_email)) {
         errors.push('Please enter a valid business email address.')
     }
 
-    if (!validateEmail(data.admin_email)) {
+    if (data.admin_email && !validateEmail(data.admin_email)) {
         errors.push('Please enter a valid admin email address.')
     }
 
@@ -65,7 +68,7 @@ export function validateMerchantFormData(data, phoneError) {
 export function prepareMerchantData(formData, phoneNumber, editingMerchant) {
     return {
         ...formData,
-        business_phone: phoneNumber.format('E.164'),
+        business_phone: phoneNumber ? phoneNumber.format('E.164') : '',
         id: editingMerchant ? editingMerchant.id : createMerchantId(),
         mid: editingMerchant ? editingMerchant.mid : createMerchantId(),
         createdAt: editingMerchant ? editingMerchant.createdAt : new Date().toISOString(),
