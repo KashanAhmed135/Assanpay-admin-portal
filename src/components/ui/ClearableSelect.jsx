@@ -18,7 +18,7 @@ export function ClearableSelect({
     return (
         <div className={`relative ${className}`.trim()}>
             <select
-                className={`h-9 w-full rounded-xl border border-white/10 bg-black/20 pl-3 pr-14 text-xs text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50 ${selectClassName}`.trim()}
+                className={`h-9 w-full rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] pl-3 pr-14 text-xs text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--focus-ring)] theme-select ${selectClassName}`.trim()}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
             >
@@ -28,7 +28,7 @@ export function ClearableSelect({
                 <button
                     type="button"
                     aria-label="Clear selection"
-                    className="absolute right-9 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full border border-white/10 bg-white/[0.04] text-[#a9b7d4] hover:text-[#eaf1ff] hover:bg-white/[0.08] transition grid place-items-center"
+                    className="absolute right-9 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] grid place-items-center"
                     onClick={() => {
                         if (onClear) onClear()
                         else onChange(clearValue)

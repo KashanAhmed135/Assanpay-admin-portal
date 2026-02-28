@@ -3,9 +3,11 @@ import {
     Building2,
     CreditCard,
     Home,
+    KeyRound,
     Receipt,
     RefreshCcw,
-    Users
+    Users,
+    Shield
 } from 'lucide-react'
 
 export const MERCHANT_NAVIGATION = [
@@ -24,6 +26,7 @@ export const MERCHANT_NAVIGATION = [
     {
         section: 'Finance',
         items: [
+            { key: 'balance', label: 'Balance', icon: Receipt },
             { key: 'settlements', label: 'Settlements', icon: Receipt },
             { key: 'reports', label: 'Reports', icon: BarChart3 },
         ],
@@ -32,6 +35,8 @@ export const MERCHANT_NAVIGATION = [
         section: 'Settings',
         items: [
             { key: 'users-roles', label: 'Users & Roles', icon: Users },
+            { key: 'api-keys', label: 'API Keys', icon: KeyRound },
+            { key: 'security', label: 'Change Password', icon: Shield },
         ],
     },
 ]

@@ -83,9 +83,13 @@ export function getDetailContent(detailState) {
                 overviewPairs: [
                     ['Settlement ID', r.settlementId],
                     ['Period', `${r.from} – ${r.to}`],
-                    ['Total', fmtPKR(r.total)],
-                    ['Fees', fmtPKR(r.fees)],
-                    ['Net Payout', fmtPKR(r.net)],
+                    ['Gross', fmtPKR(r.total ?? r.grossAmount ?? 0)],
+                    ['Fees', fmtPKR(r.fees ?? r.commissionAmount ?? 0)],
+                    ['Net', fmtPKR(r.net ?? r.netAmount ?? 0)],
+                    ['Settled', fmtPKR(r.settledAmount ?? 0)],
+                    ['Adjustments', fmtPKR(r.adjustmentsApplied ?? 0)],
+                    ['Payout', fmtPKR(r.payoutAmount ?? 0)],
+                    ['Ending Balance', fmtPKR(r.endingBalance ?? 0)],
                     ['Status', r.status],
                 ],
                 timelineItems: [
@@ -105,6 +109,13 @@ export function getDetailContent(detailState) {
             }
 
         case 'sub':
+            const userInfo = r.userEmail
+                ? [
+                      ['User Email', r.userEmail],
+                      ['User Username', r.userUsername || '-'],
+                      ['User Name', r.userName || '-'],
+                  ]
+                : [['User', 'Not linked']]
             return {
                 title: `Sub-Merchant: ${r.code}`,
                 sub: `${r.name} • Status ${r.status}`,
@@ -115,6 +126,7 @@ export function getDetailContent(detailState) {
                     ['Status', r.status],
                     ['Collections (30d)', fmtPKR(r.vol30)],
                     ['Success Rate', `${r.success}%`],
+                    ...userInfo,
                 ],
                 timelineItems: [
                     {
@@ -190,3 +202,10 @@ export function getDetailContent(detailState) {
             }
     }
 }
+
+
+
+
+
+
+

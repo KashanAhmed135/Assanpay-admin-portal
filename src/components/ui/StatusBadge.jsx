@@ -1,14 +1,14 @@
 export function StatusBadge({ value, status: statusProp }) {
     const val = value || statusProp || ''
     const status = val.toUpperCase()
-    let styles = 'bg-white/[0.04] text-[#a9b7d4] border-white/10'
+    let styles = 'bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] border-[var(--color-border-soft)]'
 
-    const good = 'bg-[rgba(47,208,122,0.12)] text-[#2fd07a] border-[rgba(47,208,122,0.25)]'
-    const warn = 'bg-[rgba(255,204,102,0.12)] text-[#ffcc66] border-[rgba(255,204,102,0.25)]'
-    const bad = 'bg-[rgba(255,90,122,0.12)] text-[#ff5a7a] border-[rgba(255,90,122,0.25)]'
+    const good = 'bg-[var(--color-success-soft)] text-[var(--color-success)] border-[color-mix(in_srgb,var(--color-success)_35%,transparent)]'
+    const warn = 'bg-[var(--color-warning-soft)] text-[var(--color-warning)] border-[color-mix(in_srgb,var(--color-warning)_35%,transparent)]'
+    const bad = 'bg-[var(--color-danger-soft)] text-[var(--color-danger)] border-[color-mix(in_srgb,var(--color-danger)_35%,transparent)]'
 
     const okList = ['SUCCESS', 'PAID', 'READY', 'APPROVED', 'ACTIVE', 'COMPLETED', 'GOOD']
-    const warnList = ['PENDING', 'REQUESTED', 'WATCH', 'PROCESSING', 'REVIEW', 'WARN']
+    const warnList = ['PENDING', 'REQUESTED', 'WATCH', 'PROCESSING', 'REVIEW', 'WARN', 'PAUSED']
     const badList = ['FAILED', 'REJECTED', 'BLOCKED', 'CANCELLED', 'ERROR', 'RISK', 'BAD']
 
     if (okList.includes(status)) styles = good

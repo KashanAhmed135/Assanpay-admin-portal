@@ -41,8 +41,28 @@ export function isMerchantUser(claims) {
   return claims.merchantId !== undefined && claims.merchantId !== null
 }
 
+export function getPermissions(claims) {
+  const resolved = claims || getAuthClaims()
+  const perms = resolved?.permissions || []
+  return Array.isArray(perms) ? perms.filter(Boolean) : []
+}
+
 export function hasPermission(permission, claims) {
   const resolved = claims || getAuthClaims()
   const perms = resolved?.permissions || []
   return perms.includes(permission)
+}
+
+export function canAny(permissions, claims) {
+  const list = Array.isArray(permissions) ? permissions : [permissions]
+  if (!list.length) return true
+  const perms = getPermissions(claims)
+  return list.some((perm) => perms.includes(perm))
+}
+
+export function canAll(permissions, claims) {
+  const list = Array.isArray(permissions) ? permissions : [permissions]
+  if (!list.length) return true
+  const perms = getPermissions(claims)
+  return list.every((perm) => perms.includes(perm))
 }

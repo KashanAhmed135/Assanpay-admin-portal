@@ -9,9 +9,9 @@ export function PasswordStrengthMeter({ password }) {
     const strengthText = getStrengthTextColor(pwScore)
 
     return (
-        <div className="mt-2 rounded-[14px] border border-white/10 bg-black/18 p-3">
+        <div className="mt-2 rounded-[14px] border border-[var(--color-border-soft)] bg-black/18 p-3">
             <div className="flex items-center justify-between">
-                <span className="text-[#a9b7d4]/85 text-[12px]">Password strength</span>
+                <span className="text-[var(--color-text-secondary)]/85 text-[12px]">Password strength</span>
                 <span className={`text-[12px] font-medium ${strengthText}`}>{pwLabel}</span>
             </div>
 
@@ -36,7 +36,7 @@ export function PasswordStrengthMeter({ password }) {
                         ) : (
                             <X size={14} className="text-[rgba(255,90,122,0.95)]" />
                         )}
-                        <span className={ok ? 'text-[rgba(47,208,122,0.95)]' : 'text-[#a9b7d4]/80'}>{label}</span>
+                        <span className={ok ? 'text-[rgba(47,208,122,0.95)]' : 'text-[var(--color-text-secondary)]/80'}>{label}</span>
                     </div>
                 ))}
             </div>

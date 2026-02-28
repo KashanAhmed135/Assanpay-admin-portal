@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import {
   ResponsiveContainer,
   AreaChart,
@@ -15,12 +15,19 @@ import {
   PieChart,
   Pie,
   Cell,
+  ScatterChart,
+  Scatter,
+  ComposedChart,
+  Legend,
 } from 'recharts'
 import { Card, Pill } from '../ui/Card'
 import { ClearableInput } from '../ui/ClearableInput'
 import { StatusBadge } from '../ui/StatusBadge'
 import { fmtPKR } from '../../utils/helpers'
 import { fetchAdminDashboardSummary } from '../../api/adminApi'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+
+const ADMIN_DASHBOARD_NAV_KEY = 'assanpay:admin-dashboard-nav'
 
 const DASHBOARD_MOCK_BY_PRESET = {
   today: {
@@ -184,114 +191,34 @@ const SPARKLINES = {
   totalRefunds: [12, 14, 16, 18, 20, 22, 24, 26],
 }
 
-const MAIN_CHART = [
-  { day: 'Mon', transactions: 1200 },
-  { day: 'Tue', transactions: 1650 },
-  { day: 'Wed', transactions: 1400 },
-  { day: 'Thu', transactions: 2100 },
-  { day: 'Fri', transactions: 2600 },
-  { day: 'Sat', transactions: 2350 },
-  { day: 'Sun', transactions: 2800 },
+const OVERVIEW_STATUS_OPTIONS = [
+  { key: 'total', label: 'Total', color: 'var(--color-accent)' },
+  { key: 'all', label: 'All Statuses', color: 'var(--color-accent)' },
+  { key: 'success', label: 'Success', color: 'var(--color-success)' },
+  { key: 'initiated', label: 'Initiated', color: 'var(--color-accent-hover)' },
+  { key: 'pending', label: 'Pending', color: 'var(--color-warning)' },
+  { key: 'failed', label: 'Failed', color: 'var(--color-danger)' },
 ]
 
-const VOLUME_TREND_BY_PRESET = {
-  today: [
-    { label: '9am', transactions: 320, success: 0.96 },
-    { label: '12pm', transactions: 540, success: 0.95 },
-    { label: '3pm', transactions: 610, success: 0.94 },
-    { label: '6pm', transactions: 820, success: 0.96 },
-    { label: '9pm', transactions: 690, success: 0.95 },
-  ],
-  yesterday: [
-    { label: '9am', transactions: 280, success: 0.95 },
-    { label: '12pm', transactions: 460, success: 0.94 },
-    { label: '3pm', transactions: 520, success: 0.93 },
-    { label: '6pm', transactions: 740, success: 0.95 },
-    { label: '9pm', transactions: 610, success: 0.94 },
-  ],
-  last7: [
-    { label: 'Mon', transactions: 2600, success: 0.94 },
-    { label: 'Tue', transactions: 2920, success: 0.95 },
-    { label: 'Wed', transactions: 2740, success: 0.93 },
-    { label: 'Thu', transactions: 3180, success: 0.95 },
-    { label: 'Fri', transactions: 3410, success: 0.96 },
-    { label: 'Sat', transactions: 2990, success: 0.95 },
-    { label: 'Sun', transactions: 2870, success: 0.94 },
-  ],
-  last30: [
-    { label: 'Week 1', transactions: 4200, success: 0.94 },
-    { label: 'Week 2', transactions: 5150, success: 0.95 },
-    { label: 'Week 3', transactions: 4760, success: 0.93 },
-    { label: 'Week 4', transactions: 6120, success: 0.96 },
-  ],
-  thisMonth: [
-    { label: 'Week 1', transactions: 4400, success: 0.94 },
-    { label: 'Week 2', transactions: 4980, success: 0.95 },
-    { label: 'Week 3', transactions: 5320, success: 0.96 },
-    { label: 'Week 4', transactions: 5660, success: 0.95 },
-  ],
-  lastMonth: [
-    { label: 'Week 1', transactions: 5100, success: 0.92 },
-    { label: 'Week 2', transactions: 5450, success: 0.93 },
-    { label: 'Week 3', transactions: 5720, success: 0.94 },
-    { label: 'Week 4', transactions: 5980, success: 0.94 },
-  ],
-  all: [
-    { label: 'Wk 1', transactions: 3800, success: 0.93 },
-    { label: 'Wk 2', transactions: 4200, success: 0.94 },
-    { label: 'Wk 3', transactions: 4650, success: 0.95 },
-    { label: 'Wk 4', transactions: 5100, success: 0.95 },
-    { label: 'Wk 5', transactions: 5480, success: 0.96 },
-    { label: 'Wk 6', transactions: 5900, success: 0.96 },
-  ],
-  custom: [
-    { label: 'Day 1', transactions: 1200, success: 0.95 },
-    { label: 'Day 2', transactions: 1680, success: 0.94 },
-    { label: 'Day 3', transactions: 1420, success: 0.96 },
-    { label: 'Day 4', transactions: 1900, success: 0.95 },
-  ],
-}
+const STATUS_STACK_SERIES = [
+  { key: 'successCount', label: 'Success', color: 'var(--color-success)' },
+  { key: 'initiatedCount', label: 'Initiated', color: 'var(--color-accent-hover)' },
+  { key: 'pendingCount', label: 'Pending', color: 'var(--color-warning)' },
+  { key: 'failedCount', label: 'Failed', color: 'var(--color-danger)' },
+  { key: 'otherCount', label: 'Other', color: 'var(--color-text-muted)' },
+]
 
-const ALERTS_BY_PRESET = {
-  today: [
-    { type: 'Settlement Overdue', status: 'PENDING' },
-    { type: 'High Refund Rate', status: 'RISK' },
-  ],
-  yesterday: [
-    { type: 'Settlement Overdue', status: 'PENDING' },
-    { type: 'Blocked Merchant', status: 'BLOCKED' },
-  ],
-  last7: [
-    { type: 'Settlement Overdue', status: 'PENDING' },
-    { type: 'High Refund Rate', status: 'RISK' },
-    { type: 'Blocked Merchant', status: 'BLOCKED' },
-  ],
-  last30: [
-    { type: 'Settlement Overdue', status: 'PENDING' },
-    { type: 'High Refund Rate', status: 'RISK' },
-    { type: 'Blocked Merchant', status: 'BLOCKED' },
-  ],
-  thisMonth: [
-    { type: 'High Refund Rate', status: 'RISK' },
-    { type: 'Blocked Merchant', status: 'BLOCKED' },
-  ],
-  lastMonth: [
-    { type: 'Settlement Overdue', status: 'PENDING' },
-    { type: 'Blocked Merchant', status: 'BLOCKED' },
-  ],
-  all: [
-    { type: 'Settlement Overdue', status: 'PENDING' },
-    { type: 'High Refund Rate', status: 'RISK' },
-    { type: 'Blocked Merchant', status: 'BLOCKED' },
-  ],
-  custom: [
-    { type: 'Settlement Overdue', status: 'PENDING' },
-    { type: 'High Refund Rate', status: 'RISK' },
-  ],
+const setAdminDashboardNavigation = (page, filters = {}) => {
+  try {
+    localStorage.setItem(ADMIN_DASHBOARD_NAV_KEY, JSON.stringify({ page, filters }))
+  } catch {
+    // ignore storage errors
+  }
+  window.location.hash = page
 }
 
 function Sparkline({ data, tone = 'good' }) {
-  const stroke = tone === 'bad' ? '#f87171' : tone === 'warn' ? '#fbbf24' : '#22c55e'
+  const stroke = tone === 'bad' ? 'var(--color-danger)' : tone === 'warn' ? 'var(--color-warning)' : 'var(--color-success)'
   const fill = tone === 'bad' ? 'rgba(248,113,113,0.18)' : tone === 'warn' ? 'rgba(251,191,36,0.18)' : 'rgba(34,197,94,0.18)'
   const chartData = data.map((v, i) => ({ i, v }))
 
@@ -321,7 +248,7 @@ export function DashboardKpis() {
         title="Payments (Today)"
         right={<StatusBadge status="ACTIVE" />}
       >
-        <div className="text-2xl font-semibold">Rs 1,245,900</div>
+        <div className="text-2xl font-semibold leading-tight break-words">Rs 1,245,900</div>
         <div className="mt-2 flex flex-wrap gap-2">
           <Pill>Count: 1,284</Pill>
           <Pill tone="good">
@@ -335,7 +262,7 @@ export function DashboardKpis() {
         title="Refunds (Today)"
         right={<StatusBadge status="REVIEW" />}
       >
-        <div className="text-2xl font-semibold">Rs 34,200</div>
+        <div className="text-2xl font-semibold leading-tight break-words">Rs 34,200</div>
         <div className="mt-2 flex flex-wrap gap-2">
           <Pill>Count: 12</Pill>
           <Pill tone="warn">
@@ -349,7 +276,7 @@ export function DashboardKpis() {
         title="Pending Settlements"
         right={<StatusBadge status="PENDING" />}
       >
-        <div className="text-2xl font-semibold">Rs 412,800</div>
+        <div className="text-2xl font-semibold leading-tight break-words">Rs 412,800</div>
         <div className="mt-2 flex flex-wrap gap-2">
           <Pill>Merchants: 9</Pill>
           <Pill tone="warn">
@@ -363,7 +290,7 @@ export function DashboardKpis() {
         title="Blocked Merchants"
         right={<StatusBadge status="RISK" />}
       >
-        <div className="text-2xl font-semibold">3</div>
+        <div className="text-2xl font-semibold leading-tight break-words">3</div>
         <div className="mt-2 flex flex-wrap gap-2">
           <Pill>Total: 128</Pill>
           <Pill tone="bad">
@@ -379,10 +306,59 @@ export function DashboardKpis() {
 export function DashboardInsights({ dateLabel, datePreset, trendDataOverride, dashboardMetrics }) {
   const [trendChartType, setTrendChartType] = useState('area')
   const [successChartType, setSuccessChartType] = useState('pie')
+  const [trendCollapsed, setTrendCollapsed] = useState(false)
+  const [successCollapsed, setSuccessCollapsed] = useState(false)
   const trendData = Array.isArray(trendDataOverride) && trendDataOverride.length > 0
     ? trendDataOverride
-    : (VOLUME_TREND_BY_PRESET[datePreset] || VOLUME_TREND_BY_PRESET.last30)
-  const alerts = ALERTS_BY_PRESET[datePreset] || ALERTS_BY_PRESET.last30
+    : []
+  const trendDataEmpty = trendData.length === 0
+  const trendSeries = useMemo(
+    () => trendData.map((row) => {
+      const successRate = Number.isFinite(row.success) ? Math.max(0, Math.min(1, Number(row.success))) : 0
+      const transactions = Number(row.transactions) || 0
+      return {
+        ...row,
+        successRate: successRate * 100,
+        successCount: Math.round(transactions * successRate),
+        failedCount: Math.max(0, transactions - Math.round(transactions * successRate)),
+      }
+    }),
+    [trendData]
+  )
+  const alerts = (() => {
+    const rows = []
+    const dueSettlementAmount = Number(dashboardMetrics?.dueSettlementAmount ?? 0)
+    const blockedMerchants = Number(dashboardMetrics?.blockedMerchants ?? 0)
+    const totalRefunds = Number(dashboardMetrics?.totalRefunds ?? 0)
+    const totalPayments = Number(dashboardMetrics?.totalPayments ?? 0)
+    const refundRate = totalPayments > 0 ? (totalRefunds / totalPayments) : 0
+
+    if (Number.isFinite(dueSettlementAmount) && dueSettlementAmount > 0) {
+      rows.push({
+        type: 'Settlement Overdue',
+        status: 'PENDING',
+        detail: `Due ${fmtPKR(dueSettlementAmount)}`,
+      })
+    }
+
+    if (Number.isFinite(refundRate) && refundRate >= 0.03 && totalRefunds > 0) {
+      rows.push({
+        type: 'High Refund Rate',
+        status: 'RISK',
+        detail: `${(refundRate * 100).toFixed(2)}%`,
+      })
+    }
+
+    if (Number.isFinite(blockedMerchants) && blockedMerchants > 0) {
+      rows.push({
+        type: 'Blocked Merchant',
+        status: 'BLOCKED',
+        detail: `Merchants: ${blockedMerchants}`,
+      })
+    }
+
+    return rows
+  })()
   const alertCount = alerts.length
   const trendTotal = trendData.reduce((acc, row) => acc + row.transactions, 0)
   const avgTicket = Math.round(trendTotal / Math.max(1, trendData.length))
@@ -395,131 +371,206 @@ export function DashboardInsights({ dateLabel, datePreset, trendDataOverride, da
   const successRate = (() => {
     const total = Number(dashboardMetrics?.totalPayments ?? 0)
     const success = Number(dashboardMetrics?.successfulPayments ?? 0)
-    if (!total) return 0
-    return Math.round((success / total) * 1000) / 10
+    if (!Number.isFinite(total) || total <= 0) return 0
+    if (!Number.isFinite(success) || success < 0) return 0
+    const raw = (success / total) * 100
+    const clamped = Math.max(0, Math.min(100, raw))
+    return Math.round(clamped * 10) / 10
   })()
+  const hasSuccessData = Number(dashboardMetrics?.totalPayments ?? 0) > 0
   const successPct = successRate
   const failedPct = Math.max(0, Math.round((100 - successRate) * 10) / 10)
   const successChart = [
-    { name: 'Success', value: successPct, color: '#22c55e' },
-    { name: 'Failed', value: failedPct, color: '#f87171' },
+    { name: 'Success', value: successPct, color: 'var(--color-success)' },
+    { name: 'Failed', value: failedPct, color: 'var(--color-danger)' },
   ]
+  const trendTotalLabel = trendDataEmpty ? '—' : trendTotal.toLocaleString()
+  const avgTicketLabel = trendDataEmpty ? '—' : avgTicket.toLocaleString()
+  const peakWeekLabel = trendDataEmpty ? '—' : peakWeek.label
+  const successRateLabel = hasSuccessData ? `${successRate.toFixed(1)}%` : '—'
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 sm:gap-4 w-full">
       <div className="xl:col-span-8">
         <Card
           title="Transaction Trend"
+          className="bg-gradient-to-br from-[var(--color-bg-secondary)]/90 via-[var(--color-bg-primary)]/85 to-[var(--color-bg-primary)] border-[var(--color-border-soft)]"
           right={(
             <div className="flex items-center gap-2">
               <Pill>{dateLabel}</Pill>
               <select
-                className="h-7 rounded-lg border border-white/10 bg-black/20 px-2 text-[11px] text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50"
+                className="h-7 rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-2 text-[11px] text-[var(--color-text-primary)] outline-none transition focus:ring-2 focus:ring-[var(--focus-ring)]"
                 value={trendChartType}
                 onChange={(e) => setTrendChartType(e.target.value)}
               >
-                <option value="area" className="bg-[#0b1220]">Area</option>
-                <option value="bar" className="bg-[#0b1220]">Bar</option>
-                <option value="line" className="bg-[#0b1220]">Line</option>
+                <option value="area" className="bg-[var(--color-bg-primary)]">Area</option>
+                <option value="bar" className="bg-[var(--color-bg-primary)]">Bar</option>
+                <option value="line" className="bg-[var(--color-bg-primary)]">Line</option>
+                <option value="stacked" className="bg-[var(--color-bg-primary)]">Stacked</option>
+                <option value="composed" className="bg-[var(--color-bg-primary)]">Composed</option>
               </select>
+              <button
+                type="button"
+                aria-label={trendCollapsed ? 'Expand chart' : 'Collapse chart'}
+                className="h-7 w-7 grid place-items-center rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition shrink-0 relative z-10"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setTrendCollapsed((prev) => !prev)
+                }}
+              >
+                {trendCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+              </button>
             </div>
           )}
         >
-          <div className="h-[220px] sm:h-[280px] rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-            <ResponsiveContainer width="100%" height="100%">
-              {trendChartType === 'bar' ? (
-                <BarChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                  <XAxis dataKey="label" stroke="#a9b7d4" tickLine={false} axisLine={false} />
-                  <YAxis stroke="#a9b7d4" tickLine={false} axisLine={false} width={36} />
-                  <Tooltip
-                    contentStyle={{
-                      background: '#1f2435',
-                      border: '1px solid rgba(255,255,255,0.12)',
-                      borderRadius: 12,
-                      color: '#eaf1ff',
-                    }}
-                    labelStyle={{ color: '#a9b7d4' }}
-                    formatter={(value, name) => {
-                      if (name === 'success') return [`${Math.round(Number(value) * 100)}%`, 'Success']
-                      return [Number(value).toLocaleString(), 'Transactions']
-                    }}
-                  />
-                  <Bar dataKey="transactions" fill="#5aa7ff" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              ) : trendChartType === 'line' ? (
-                <LineChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                  <XAxis dataKey="label" stroke="#a9b7d4" tickLine={false} axisLine={false} />
-                  <YAxis stroke="#a9b7d4" tickLine={false} axisLine={false} width={36} />
-                  <Tooltip
-                    contentStyle={{
-                      background: '#1f2435',
-                      border: '1px solid rgba(255,255,255,0.12)',
-                      borderRadius: 12,
-                      color: '#eaf1ff',
-                    }}
-                    labelStyle={{ color: '#a9b7d4' }}
-                    formatter={(value, name) => {
-                      if (name === 'success') return [`${Math.round(Number(value) * 100)}%`, 'Success']
-                      return [Number(value).toLocaleString(), 'Transactions']
-                    }}
-                  />
-                  <Line type="monotone" dataKey="transactions" stroke="#5aa7ff" strokeWidth={2} dot={false} />
-                </LineChart>
+          {!trendCollapsed ? (
+            <>
+              {trendDataEmpty ? (
+                <div className="h-[220px] sm:h-[280px] rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 py-2 text-xs text-[var(--color-text-secondary)]/70 grid place-items-center">
+                  No chart data for selected range.
+                </div>
               ) : (
-                <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="trendVolume" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#5aa7ff" stopOpacity={0.32} />
-                      <stop offset="95%" stopColor="#5aa7ff" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                  <XAxis dataKey="label" stroke="#a9b7d4" tickLine={false} axisLine={false} />
-                  <YAxis stroke="#a9b7d4" tickLine={false} axisLine={false} width={36} />
-                  <Tooltip
-                    contentStyle={{
-                      background: '#1f2435',
-                      border: '1px solid rgba(255,255,255,0.12)',
-                      borderRadius: 12,
-                      color: '#eaf1ff',
-                    }}
-                    labelStyle={{ color: '#a9b7d4' }}
-                    formatter={(value, name) => {
-                      if (name === 'success') return [`${Math.round(Number(value) * 100)}%`, 'Success']
-                      return [Number(value).toLocaleString(), 'Transactions']
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="transactions"
-                    stroke="#5aa7ff"
-                    strokeWidth={2}
-                    fill="url(#trendVolume)"
-                  />
-                </AreaChart>
+                <div className="h-[220px] sm:h-[280px] rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 py-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    {trendChartType === 'bar' ? (
+                      <BarChart data={trendSeries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+                        <XAxis dataKey="label" stroke="var(--color-text-secondary)" tickLine={false} axisLine={false} />
+                        <YAxis stroke="var(--color-text-secondary)" tickLine={false} axisLine={false} width={36} />
+                        <Tooltip
+                          contentStyle={{
+                            background: 'var(--color-surface)',
+                            border: '1px solid var(--color-chart-tooltip-border)',
+                            borderRadius: 12,
+                            color: 'var(--color-text-primary)',
+                          }}
+                          labelStyle={{ color: 'var(--color-text-secondary)' }}
+                          formatter={(value, name) => {
+                            if (name === 'successRate') return [`${Math.round(Number(value))}%`, 'Success']
+                            return [Number(value).toLocaleString(), 'Transactions']
+                          }}
+                        />
+                        <Bar dataKey="transactions" fill="var(--color-accent)" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    ) : trendChartType === 'line' ? (
+                      <LineChart data={trendSeries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+                        <XAxis dataKey="label" stroke="var(--color-text-secondary)" tickLine={false} axisLine={false} />
+                        <YAxis stroke="var(--color-text-secondary)" tickLine={false} axisLine={false} width={36} />
+                        <Tooltip
+                          contentStyle={{
+                            background: 'var(--color-surface)',
+                            border: '1px solid var(--color-chart-tooltip-border)',
+                            borderRadius: 12,
+                            color: 'var(--color-text-primary)',
+                          }}
+                          labelStyle={{ color: 'var(--color-text-secondary)' }}
+                          formatter={(value, name) => {
+                            if (name === 'successRate') return [`${Math.round(Number(value))}%`, 'Success']
+                            return [Number(value).toLocaleString(), 'Transactions']
+                          }}
+                        />
+                        <Line type="monotone" dataKey="transactions" stroke="var(--color-accent)" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    ) : trendChartType === 'stacked' ? (
+                      <BarChart data={trendSeries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+                        <XAxis dataKey="label" stroke="var(--color-text-secondary)" tickLine={false} axisLine={false} />
+                        <YAxis stroke="var(--color-text-secondary)" tickLine={false} axisLine={false} width={36} />
+                        <Tooltip
+                          contentStyle={{
+                            background: 'var(--color-surface)',
+                            border: '1px solid var(--color-chart-tooltip-border)',
+                            borderRadius: 12,
+                            color: 'var(--color-text-primary)',
+                          }}
+                          labelStyle={{ color: 'var(--color-text-secondary)' }}
+                          formatter={(value, name) => [Number(value).toLocaleString(), name === 'successCount' ? 'Success' : 'Failed']}
+                        />
+                        <Legend />
+                        <Bar dataKey="successCount" stackId="a" fill="var(--color-success)" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="failedCount" stackId="a" fill="var(--color-danger)" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    ) : trendChartType === 'composed' ? (
+                      <ComposedChart data={trendSeries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+                        <XAxis dataKey="label" stroke="var(--color-text-secondary)" tickLine={false} axisLine={false} />
+                        <YAxis stroke="var(--color-text-secondary)" tickLine={false} axisLine={false} width={36} />
+                        <Tooltip
+                          contentStyle={{
+                            background: 'var(--color-surface)',
+                            border: '1px solid var(--color-chart-tooltip-border)',
+                            borderRadius: 12,
+                            color: 'var(--color-text-primary)',
+                          }}
+                          labelStyle={{ color: 'var(--color-text-secondary)' }}
+                          formatter={(value, name) => {
+                            if (name === 'successRate') return [`${Math.round(Number(value))}%`, 'Success']
+                            return [Number(value).toLocaleString(), name === 'transactions' ? 'Transactions' : name]
+                          }}
+                        />
+                        <Bar dataKey="transactions" fill="var(--color-accent)" radius={[6, 6, 0, 0]} />
+                        <Line type="monotone" dataKey="successRate" stroke="var(--color-success)" strokeWidth={2} dot={false} />
+                      </ComposedChart>
+                    ) : (
+                      <AreaChart data={trendSeries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="trendVolume" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="var(--color-accent)" stopOpacity={0.32} />
+                            <stop offset="95%" stopColor="var(--color-accent)" stopOpacity={0.02} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+                        <XAxis dataKey="label" stroke="var(--color-text-secondary)" tickLine={false} axisLine={false} />
+                        <YAxis stroke="var(--color-text-secondary)" tickLine={false} axisLine={false} width={36} />
+                        <Tooltip
+                          contentStyle={{
+                            background: 'var(--color-surface)',
+                            border: '1px solid var(--color-chart-tooltip-border)',
+                            borderRadius: 12,
+                            color: 'var(--color-text-primary)',
+                          }}
+                          labelStyle={{ color: 'var(--color-text-secondary)' }}
+                          formatter={(value, name) => {
+                            if (name === 'successRate') return [`${Math.round(Number(value))}%`, 'Success']
+                            return [Number(value).toLocaleString(), 'Transactions']
+                          }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="transactions"
+                          stroke="var(--color-accent)"
+                          strokeWidth={2}
+                          fill="url(#trendVolume)"
+                        />
+                      </AreaChart>
+                    )}
+                  </ResponsiveContainer>
+                </div>
               )}
-            </ResponsiveContainer>
-          </div>
-          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
-              <div className="text-xs text-[#a9b7d4]/70">Total transactions</div>
-              <div className="text-base font-semibold">{trendTotal.toLocaleString()}</div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
-              <div className="text-xs text-[#a9b7d4]/70">Success rate</div>
-              <div className="text-base font-semibold">{successRate}%</div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
-              <div className="text-xs text-[#a9b7d4]/70">Avg per week</div>
-              <div className="text-base font-semibold">{avgTicket.toLocaleString()}</div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
-              <div className="text-xs text-[#a9b7d4]/70">Peak week</div>
-              <div className="text-base font-semibold">{peakWeek.label}</div>
-            </div>
-          </div>
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 py-2">
+                  <div className="text-xs text-[var(--color-text-secondary)]/70">Total transactions</div>
+                  <div className="text-base font-semibold leading-tight break-words">{trendTotalLabel}</div>
+                </div>
+                <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 py-2">
+                  <div className="text-xs text-[var(--color-text-secondary)]/70">Success rate</div>
+                  <div className="text-base font-semibold leading-tight break-words">{successRateLabel}</div>
+                </div>
+                <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 py-2">
+                  <div className="text-xs text-[var(--color-text-secondary)]/70">Avg per week</div>
+                  <div className="text-base font-semibold leading-tight break-words">{avgTicketLabel}</div>
+                </div>
+                <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 py-2">
+                  <div className="text-xs text-[var(--color-text-secondary)]/70">Peak week</div>
+                  <div className="text-base font-semibold leading-tight break-words">{peakWeekLabel}</div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="text-xs text-[var(--color-text-secondary)]/70">Chart collapsed.</div>
+          )}
         </Card>
       </div>
 
@@ -528,23 +579,31 @@ export function DashboardInsights({ dateLabel, datePreset, trendDataOverride, da
           <Card
             right={<StatusBadge status="PENDING" value={`${alertCount} New`} />}
           >
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto theme-scrollbar">
               <table className="min-w-[320px] w-full text-sm">
                 <thead>
-                  <tr className="text-left text-[#a9b7d4]/80">
+                  <tr className="text-left text-[var(--color-text-secondary)]/80">
                     <th className="py-2 pr-3">Type</th>
+                    <th className="py-2 pr-3">Detail</th>
                     <th className="py-2">Status</th>
                   </tr>
                 </thead>
-                <tbody className="text-[#eaf1ff]">
-                  {alerts.map((row, idx) => (
-                    <tr key={`${row.type}-${idx}`} className="border-t border-white/10">
-                      <td className="py-2 pr-3">{row.type}</td>
-                      <td className="py-2">
-                        <StatusBadge status={row.status} />
-                      </td>
+                <tbody className="text-[var(--color-text-primary)]">
+                  {alerts.length === 0 ? (
+                    <tr className="border-t border-[var(--color-border-soft)]">
+                      <td className="py-2 pr-3 text-[var(--color-text-secondary)]/70" colSpan={3}>No active alerts.</td>
                     </tr>
-                  ))}
+                  ) : (
+                    alerts.map((row, idx) => (
+                      <tr key={`${row.type}-${idx}`} className="border-t border-[var(--color-border-soft)]">
+                        <td className="py-2 pr-3">{row.type}</td>
+                        <td className="py-2 pr-3 text-[var(--color-text-secondary)]/80">{row.detail || '-'}</td>
+                        <td className="py-2">
+                          <StatusBadge status={row.status} />
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -552,76 +611,97 @@ export function DashboardInsights({ dateLabel, datePreset, trendDataOverride, da
 
           <Card
             title="Total Success Rate"
+            className="bg-gradient-to-br from-[var(--color-bg-primary)]/90 via-[var(--color-bg-secondary)]/85 to-[var(--color-bg-primary)] border-[var(--color-border-soft)]"
             right={(
-              <select
-                className="h-7 rounded-lg border border-white/10 bg-black/20 px-2 text-[11px] text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50"
-                value={successChartType}
-                onChange={(e) => setSuccessChartType(e.target.value)}
-              >
-                <option value="pie" className="bg-[#0b1220]">Pie</option>
-                <option value="bar" className="bg-[#0b1220]">Bar</option>
-              </select>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  aria-label={successCollapsed ? 'Expand chart' : 'Collapse chart'}
+                  className="h-7 w-7 grid place-items-center rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition"
+                  onClick={() => setSuccessCollapsed((prev) => !prev)}
+                >
+                  {successCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                </button>
+                <select
+                  className="h-7 rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-2 text-[11px] text-[var(--color-text-primary)] outline-none transition focus:ring-2 focus:ring-[var(--focus-ring)]"
+                  value={successChartType}
+                  onChange={(e) => setSuccessChartType(e.target.value)}
+                >
+                  <option value="pie" className="bg-[var(--color-bg-primary)]">Pie</option>
+                  <option value="bar" className="bg-[var(--color-bg-primary)]">Bar</option>
+                </select>
+              </div>
             )}
           >
-            <div className="flex items-center gap-4">
-              <div className="h-[120px] w-[120px] rounded-full bg-black/20 border border-white/10 grid place-items-center">
-                {successChartType === 'bar' ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={successChart} margin={{ top: 8, right: 6, left: 6, bottom: 0 }}>
-                      <XAxis dataKey="name" hide />
-                      <YAxis hide domain={[0, 100]} />
-                      <Tooltip
-                        contentStyle={{
-                          background: '#1f2435',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          borderRadius: 12,
-                          color: '#eaf1ff',
-                        }}
-                        labelStyle={{ color: '#a9b7d4' }}
-                        formatter={(value) => [`${Number(value).toFixed(1)}%`, 'Rate']}
-                      />
-                      <Bar dataKey="value" radius={[6, 6, 6, 6]}>
-                        {successChart.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={successChart}
-                        dataKey="value"
-                        innerRadius={38}
-                        outerRadius={54}
-                        paddingAngle={3}
-                        startAngle={90}
-                        endAngle={-270}
-                      >
-                        {successChart.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-              <div className="flex-1">
-                <div className="text-3xl font-semibold">{successRate}%</div>
-                <div className="mt-1 text-xs text-[#a9b7d4]/70">Based on {dateLabel}</div>
-                <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
-                    <span className="h-2 w-2 rounded-full bg-[#22c55e]" />
-                    Success
-                  </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
-                    <span className="h-2 w-2 rounded-full bg-[#f87171]" />
-                    Failed
-                  </span>
+            {!successCollapsed ? (
+              <div className="flex items-center gap-4">
+                <div className="h-[120px] w-[120px] rounded-full bg-[var(--color-surface-muted)] border border-[var(--color-border-soft)] grid place-items-center">
+                  {hasSuccessData ? (successChartType === 'bar' ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={successChart} margin={{ top: 8, right: 6, left: 6, bottom: 0 }}>
+                        <XAxis dataKey="name" hide />
+                        <YAxis hide domain={[0, 100]} />
+                        <Tooltip
+                          contentStyle={{
+                            background: 'var(--color-surface)',
+                            border: '1px solid var(--color-chart-tooltip-border)',
+                            borderRadius: 12,
+                            color: 'var(--color-text-primary)',
+                          }}
+                          labelStyle={{ color: 'var(--color-text-secondary)' }}
+                          formatter={(value) => [`${Number(value).toFixed(1)}%`, 'Rate']}
+                        />
+                        <Bar dataKey="value" radius={[6, 6, 6, 6]}>
+                          {successChart.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={successChart}
+                          dataKey="value"
+                          innerRadius={38}
+                          outerRadius={54}
+                          paddingAngle={3}
+                          startAngle={90}
+                          endAngle={-270}
+                        >
+                          {successChart.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )) : (
+                    <div className="text-xs text-[var(--color-text-secondary)]/70 text-center px-2">
+                      No data yet
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="text-3xl font-semibold leading-tight break-words">{successRateLabel}</div>
+                  <div className="mt-1 text-xs text-[var(--color-text-secondary)]/70">Based on {dateLabel}</div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 py-1">
+                      <span className="h-2 w-2 rounded-full bg-[var(--color-success)]" />
+                      Success
+                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 py-1">
+                      <span className="h-2 w-2 rounded-full bg-[var(--color-danger)]" />
+                      Failed
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="h-[96px] rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 py-2 text-xs text-[var(--color-text-secondary)]/70 grid place-items-center">
+                Chart collapsed
+              </div>
+            )}
           </Card>
         </div>
       </div>
@@ -630,35 +710,67 @@ export function DashboardInsights({ dateLabel, datePreset, trendDataOverride, da
 }
 
 export function DashboardSection() {
+  const AUTO_REFRESH_MS = 30000
+  const DASHBOARD_FILTER_DEBOUNCE_MS = 700
   const [datePreset, setDatePreset] = useState('all')
   const [customOpen, setCustomOpen] = useState(false)
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
+  const customRangeRef = useRef(null)
   const [dashboardMerchantId, setDashboardMerchantId] = useState('')
   const [dashboardMerchantName, setDashboardMerchantName] = useState('')
   const [dashboardMerchantEmail, setDashboardMerchantEmail] = useState('')
+  const [dashboardPrefillHandled, setDashboardPrefillHandled] = useState(false)
   const [chartType, setChartType] = useState('area')
+  const [overviewMetric, setOverviewMetric] = useState('transactions')
+  const [overviewStatus, setOverviewStatus] = useState('total')
   const [dashboardData, setDashboardData] = useState(null)
   const [chartData, setChartData] = useState([])
   const [unsettledSummary, setUnsettledSummary] = useState(null)
   const [dashboardError, setDashboardError] = useState('')
   const [chartFailed, setChartFailed] = useState(false)
   const [chartEmpty, setChartEmpty] = useState(false)
+  const [overviewCollapsed, setOverviewCollapsed] = useState(false)
+  const [autoRefreshTick, setAutoRefreshTick] = useState(0)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null)
+  const [refreshCountdown, setRefreshCountdown] = useState(Math.round(AUTO_REFRESH_MS / 1000))
+
+  const debouncedDashboardMerchantId = useDebouncedValue(dashboardMerchantId, DASHBOARD_FILTER_DEBOUNCE_MS)
+  const debouncedDashboardMerchantName = useDebouncedValue(dashboardMerchantName, DASHBOARD_FILTER_DEBOUNCE_MS)
+  const debouncedDashboardMerchantEmail = useDebouncedValue(dashboardMerchantEmail, DASHBOARD_FILTER_DEBOUNCE_MS)
 
   const baseData = useMemo(
-    () => dashboardData || DASHBOARD_MOCK_BY_PRESET[datePreset] || DASHBOARD_MOCK_BY_PRESET.all,
-    [dashboardData, datePreset]
+    () => dashboardData,
+    [dashboardData]
   )
 
   const data = useMemo(
-    () => ({
-      ...baseData,
-      unsettledSuccessfulPayments: unsettledSummary?.totalCount ?? baseData.unsettledSuccessfulPayments ?? 0,
-    }),
+    () => (baseData
+      ? {
+          ...baseData,
+          unsettledSuccessfulPayments: unsettledSummary?.totalCount ?? baseData.unsettledSuccessfulPayments ?? 0,
+        }
+      : null),
     [baseData, unsettledSummary]
   )
 
-  const chartRows = chartFailed ? MAIN_CHART : chartData
+  const toNumber = (value) => {
+    const num = Number(value)
+    return Number.isFinite(num) ? num : 0
+  }
+  const chartRows = chartFailed ? [] : chartData
+  const chartRowsWithOther = useMemo(
+    () => chartRows.map((row) => {
+      const success = toNumber(row.successCount)
+      const failed = toNumber(row.failedCount)
+      const pending = toNumber(row.pendingCount)
+      const initiated = toNumber(row.initiatedCount)
+      const total = toNumber(row.transactions)
+      const other = Math.max(0, total - (success + failed + pending + initiated))
+      return { ...row, otherCount: other }
+    }),
+    [chartRows]
+  )
 
   const formatDate = (date) => {
     const yyyy = date.getFullYear()
@@ -708,13 +820,28 @@ export function DashboardSection() {
   }
 
   useEffect(() => {
+    if (dashboardPrefillHandled) return
+    try {
+      const stored = localStorage.getItem('assanpay:dashboard-merchant-id')
+      if (stored) {
+        setDashboardMerchantId(stored)
+        localStorage.removeItem('assanpay:dashboard-merchant-id')
+      }
+    } finally {
+      setDashboardPrefillHandled(true)
+    }
+  }, [dashboardPrefillHandled])
+
+  useEffect(() => {
     let active = true
     const range = resolveRange()
-    const merchantIdValue = dashboardMerchantId.trim()
+    const merchantIdValue = debouncedDashboardMerchantId.trim()
+    const merchantNameValue = debouncedDashboardMerchantName.trim()
+    const merchantEmailValue = debouncedDashboardMerchantEmail.trim()
     const dashboardParams = {
       merchantId: merchantIdValue || undefined,
-      merchantName: dashboardMerchantName.trim() || undefined,
-      merchantEmail: dashboardMerchantEmail.trim() || undefined,
+      merchantName: merchantNameValue.length >= 2 ? merchantNameValue : undefined,
+      merchantEmail: merchantEmailValue.length >= 3 ? merchantEmailValue : undefined,
     }
     if (range) {
       dashboardParams.fromDate = range.from
@@ -727,17 +854,40 @@ export function DashboardSection() {
         if (active) {
           const dashboard = res?.dashboard || null
           const chartRows = Array.isArray(res?.paymentChart) ? res.paymentChart : []
-          const mappedChart = chartRows.map((row) => ({
-            day: row.date,
-            transactions: row.totalCount,
-            amount: row.totalAmount,
-          }))
+          const mappedChart = chartRows.map((row) => {
+            const successCount = toNumber(
+              row.successCount ?? row.successfulCount ?? row.successful ?? row.success
+            )
+            const failedCount = toNumber(
+              row.failedCount ?? row.failed ?? row.failureCount
+            )
+            const pendingCount = toNumber(
+              row.pendingCount ?? row.pending ?? row.pendingPayments
+            )
+            const initiatedCount = toNumber(
+              row.initiatedCount ?? row.initiated ?? row.initiatedPayments ?? row.initializedCount
+            )
+            const totalCount = toNumber(row.totalCount ?? row.total)
+            const derivedTotal = totalCount > 0
+              ? totalCount
+              : successCount + failedCount + pendingCount + initiatedCount
+            return {
+              day: row.date,
+              transactions: derivedTotal,
+              amount: toNumber(row.totalAmount ?? row.amount),
+              successCount,
+              failedCount,
+              pendingCount,
+              initiatedCount,
+            }
+          })
           setDashboardData(dashboard)
           setChartData(mappedChart)
           setChartFailed(false)
           setChartEmpty(mappedChart.length === 0)
           setUnsettledSummary(res?.unsettledSummary || null)
           setDashboardError('')
+          setLastUpdatedAt(new Date())
         }
       } catch (err) {
         if (active) {
@@ -755,29 +905,105 @@ export function DashboardSection() {
     return () => {
       active = false
     }
-  }, [datePreset, customFrom, customTo, dashboardMerchantId, dashboardMerchantName, dashboardMerchantEmail])
+  }, [datePreset, customFrom, customTo, debouncedDashboardMerchantId, debouncedDashboardMerchantName, debouncedDashboardMerchantEmail, autoRefreshTick])
+
+  useEffect(() => {
+    if (!customOpen) return
+    const handleOutside = (event) => {
+      if (!customRangeRef.current) return
+      if (!customRangeRef.current.contains(event.target)) {
+        setCustomOpen(false)
+      }
+    }
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') setCustomOpen(false)
+    }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [customOpen])
+
+  useEffect(() => {
+    const handle = setInterval(() => setAutoRefreshTick((tick) => tick + 1), AUTO_REFRESH_MS)
+    return () => clearInterval(handle)
+  }, [])
+
+  useEffect(() => {
+    setRefreshCountdown(Math.round(AUTO_REFRESH_MS / 1000))
+  }, [autoRefreshTick])
+
+  useEffect(() => {
+    const handle = setInterval(() => {
+      setRefreshCountdown((prev) => (prev > 0 ? prev - 1 : 0))
+    }, 1000)
+    return () => clearInterval(handle)
+  }, [])
+
+  useEffect(() => {
+    if (overviewMetric === 'amount' && overviewStatus !== 'total') {
+      setOverviewStatus('total')
+    }
+  }, [overviewMetric, overviewStatus])
+
+  useEffect(() => {
+    if (chartType === 'status' && overviewMetric === 'amount') {
+      setOverviewMetric('transactions')
+    }
+  }, [chartType, overviewMetric])
 
   const getValue = (key, format) => {
-    const value = data[key]
+    const value = data?.[key]
     if (format === 'currency') return fmtPKR(value || 0)
     return value ?? 0
   }
-
-  const trends = {
-    totalMerchants: 0.0,
-    activeMerchants: 1.2,
-    blockedMerchants: -0.4,
-    totalSubMerchants: 0.8,
-    totalUsers: 0.0,
-    totalPayments: 6.5,
-    successfulPayments: 5.8,
-    failedPayments: -1.1,
-    totalPaymentVolume: 7.4,
-    totalSettlements: 2.2,
-    dueSettlementAmount: -3.5,
-    unsettledSuccessfulPayments: 0.0,
-    totalRefunds: 1.0,
+  const formatCompactRs = (value) => {
+    const num = Number(value) || 0
+    const compact = new Intl.NumberFormat('en-PK', {
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    }).format(num)
+    return `Rs${compact}`
   }
+  const statusDataKeyMap = {
+    success: 'successCount',
+    initiated: 'initiatedCount',
+    pending: 'pendingCount',
+    failed: 'failedCount',
+  }
+  const resolvedOverviewStatus = overviewMetric === 'amount' ? 'total' : overviewStatus
+  const overviewStatusMeta = OVERVIEW_STATUS_OPTIONS.find((opt) => opt.key === resolvedOverviewStatus)
+  const overviewDataKey = resolvedOverviewStatus === 'total'
+    ? (overviewMetric === 'amount' ? 'amount' : 'transactions')
+    : (statusDataKeyMap[resolvedOverviewStatus] || 'transactions')
+  const overviewLabel = resolvedOverviewStatus === 'total'
+    ? (overviewMetric === 'amount' ? 'Amount' : 'Transactions')
+    : (overviewStatusMeta?.label || 'Transactions')
+  const overviewSeriesColor = overviewStatusMeta?.color || 'var(--color-accent)'
+  const showAllStatuses = resolvedOverviewStatus === 'all'
+  const getSeriesLabel = (key) => {
+    if (key === 'transactions') return 'Total'
+    return STATUS_STACK_SERIES.find((series) => series.key === key)?.label || key
+  }
+  const formatOverviewTooltip = (value, name) => ([
+    overviewMetric === 'amount' ? fmtPKR(value) : Number(value).toLocaleString(),
+    showAllStatuses ? getSeriesLabel(name) : overviewLabel,
+  ])
+  const overviewTotalValue = chartRows.reduce((acc, row) => acc + toNumber(row[overviewDataKey]), 0)
+  const overviewTotalLabel = chartRows.length > 0
+    ? (overviewMetric === 'amount'
+      ? fmtPKR(overviewTotalValue)
+      : overviewTotalValue.toLocaleString())
+    : (resolvedOverviewStatus === 'total'
+      ? (overviewMetric === 'amount'
+        ? getValue('totalPaymentVolume', 'currency')
+        : getValue('totalPayments'))
+      : '—')
+
+  const showTrendBadges = false
+  const showSparklines = false
 
   const presetLabel = {
     today: 'Today',
@@ -791,6 +1017,62 @@ export function DashboardSection() {
   }[datePreset] || 'All time'
 
   const apiError = dashboardError
+  const initiatedPayments = (() => {
+    const direct = Number(
+      data?.initiatedPayments
+      ?? data?.initiatedCount
+      ?? data?.initiated
+      ?? data?.initiatedPaymentCount
+      ?? 0
+    )
+    if (Number.isFinite(direct) && direct > 0) return direct
+    if (chartRows.length === 0) return 0
+    return chartRows.reduce((acc, row) => acc + toNumber(row.initiatedCount), 0)
+  })()
+  const pendingPayments = (() => {
+    const direct = Number(
+      data?.pendingPayments
+      ?? data?.pendingCount
+      ?? data?.pending
+      ?? data?.pendingPaymentCount
+      ?? 0
+    )
+    if (Number.isFinite(direct) && direct > 0) return direct
+    if (chartRows.length === 0) return 0
+    return chartRows.reduce((acc, row) => acc + toNumber(row.pendingCount), 0)
+  })()
+  const otherPayments = (() => {
+    const total = Number(getValue('totalPayments')) || 0
+    const success = Number(getValue('successfulPayments')) || 0
+    const failed = Number(getValue('failedPayments')) || 0
+    const initiated = Number(initiatedPayments) || 0
+    const pending = Number(pendingPayments) || 0
+    return Math.max(0, total - (success + failed + initiated + pending))
+  })()
+  if (!data) {
+    return (
+      <div className="space-y-4 sm:space-y-5 w-full">
+        <div className="rounded-2xl border border-[var(--color-border-soft)] bg-gradient-to-br from-[var(--color-bg-primary)] to-[var(--color-bg-secondary)] p-5 sm:p-6 text-[var(--color-text-primary)] shadow-card">
+          <div className="text-lg font-semibold">Dashboard data unavailable</div>
+          <div className="mt-2 text-sm text-[var(--color-text-secondary)]/80">
+            {apiError || 'API not reachable. Please check the backend and try again.'}
+          </div>
+          <div className="mt-4 text-xs text-[var(--color-text-secondary)]/70">
+            Auto refresh is enabled. This page will update as soon as the API is back.
+          </div>
+        </div>
+      </div>
+    )
+  }
+  const primaryKeys = ['totalPaymentVolume', 'totalPayments']
+  const secondaryKeys = ['unsettledSuccessfulPayments', 'successfulPayments', 'failedPayments', 'totalRefunds']
+  const merchantKeys = ['totalMerchants', 'activeMerchants', 'blockedMerchants', 'totalSubMerchants']
+  const remainingMetrics = METRIC_CARDS.filter(
+    (m) => !primaryKeys.includes(m.key) && !secondaryKeys.includes(m.key) && !merchantKeys.includes(m.key)
+  )
+  const lastUpdatedLabel = lastUpdatedAt
+    ? lastUpdatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : '—'
 
   return (
     <div className="space-y-4 sm:space-y-5 w-full">
@@ -800,163 +1082,637 @@ export function DashboardSection() {
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2">
+          <select
+            className="h-9 min-w-[180px] rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 text-xs text-[var(--color-text-primary)] outline-none transition focus:ring-2 focus:ring-[var(--focus-ring)]"
+            value={datePreset}
+            onChange={(e) => {
+              const next = e.target.value
+              setDatePreset(next)
+              if (next === 'custom') {
+                setCustomOpen(true)
+                return
+              }
+              setCustomOpen(false)
+            }}
+          >
+          <option value="today" className="bg-[var(--color-bg-primary)]">Today</option>
+          <option value="yesterday" className="bg-[var(--color-bg-primary)]">Yesterday</option>
+          <option value="last7" className="bg-[var(--color-bg-primary)]">Last 7 days</option>
+          <option value="last30" className="bg-[var(--color-bg-primary)]">Last 30 days</option>
+          <option value="thisMonth" className="bg-[var(--color-bg-primary)]">This month</option>
+          <option value="lastMonth" className="bg-[var(--color-bg-primary)]">Last month</option>
+          <option value="all" className="bg-[var(--color-bg-primary)]">All Time</option>
+          <option value="custom" className="bg-[var(--color-bg-primary)]">Custom Date</option>
+          </select>
+          {datePreset === 'custom' && (
+            <div className="relative" ref={customRangeRef}>
+              <button
+                type="button"
+                className="h-9 rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 text-xs text-[var(--color-text-primary)] transition hover:bg-[var(--color-surface)] inline-flex items-center gap-2"
+                onClick={() => setCustomOpen((prev) => !prev)}
+              >
+                <span>{customFrom && customTo ? `${customFrom} to ${customTo}` : 'Set custom range'}</span>
+                <ChevronDown size={14} className="opacity-70" />
+              </button>
+              {customOpen && (
+                <div className="absolute right-0 mt-2 w-[320px] rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface)] p-4 text-[var(--color-text-primary)] shadow-card z-20">
+                  <div className="text-sm font-semibold">Custom Date</div>
+                  <div className="mt-3 space-y-3 text-xs text-[var(--color-text-secondary)]/85">
+                    <div>
+                      <div className="mb-2">Date Start</div>
+                      <div className="relative">
+                        <input
+                          className="h-9 w-full rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] pl-3 pr-10 text-xs text-[var(--color-text-primary)] outline-none transition focus:ring-2 focus:ring-[var(--focus-ring)]"
+                          type="date"
+                          value={customFrom}
+                          onChange={(e) => setCustomFrom(e.target.value)}
+                        />
+                        {customFrom && (
+                          <button
+                            type="button"
+                            aria-label="Clear start date"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition grid place-items-center"
+                            onClick={() => setCustomFrom('')}
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mb-2">Date End</div>
+                      <div className="relative">
+                        <input
+                          className="h-9 w-full rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] pl-3 pr-10 text-xs text-[var(--color-text-primary)] outline-none transition focus:ring-2 focus:ring-[var(--focus-ring)]"
+                          type="date"
+                          value={customTo}
+                          onChange={(e) => setCustomTo(e.target.value)}
+                        />
+                        {customTo && (
+                          <button
+                            type="button"
+                            aria-label="Clear end date"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition grid place-items-center"
+                            onClick={() => setCustomTo('')}
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex justify-end gap-2 text-xs">
+                    <button
+                      className="h-8 px-3 rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] hover:bg-[var(--color-surface)] transition text-[var(--color-text-primary)]"
+                      type="button"
+                      onClick={() => setCustomOpen(false)}
+                    >
+                      Close
+                    </button>
+                    <button
+                      className="h-8 px-3 rounded-xl bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] transition text-white font-semibold"
+                      type="button"
+                      onClick={() => {
+                        setCustomOpen(false)
+                        setDatePreset('custom')
+                      }}
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         <select
-          className="h-9 min-w-[180px] rounded-xl border border-white/10 bg-black/20 px-3 text-xs text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50"
-          value={datePreset}
-          onChange={(e) => {
-            const next = e.target.value
-            setDatePreset(next)
-            if (next === 'custom') {
-              setCustomOpen(true)
-            }
-          }}
-        >
-          <option value="today" className="bg-[#0b1220]">Today</option>
-          <option value="yesterday" className="bg-[#0b1220]">Yesterday</option>
-          <option value="last7" className="bg-[#0b1220]">Last 7 days</option>
-          <option value="last30" className="bg-[#0b1220]">Last 30 days</option>
-          <option value="thisMonth" className="bg-[#0b1220]">This month</option>
-          <option value="lastMonth" className="bg-[#0b1220]">Last month</option>
-          <option value="all" className="bg-[#0b1220]">All Time</option>
-          <option value="custom" className="bg-[#0b1220]">Custom Date</option>
-        </select>
-        <select
-          className="h-9 min-w-[140px] rounded-xl border border-white/10 bg-black/20 px-3 text-xs text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50"
+          className="h-9 min-w-[140px] rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 text-xs text-[var(--color-text-primary)] outline-none transition focus:ring-2 focus:ring-[var(--focus-ring)]"
           value={chartType}
           onChange={(e) => setChartType(e.target.value)}
         >
-          <option value="area" className="bg-[#0b1220]">Area</option>
-          <option value="bar" className="bg-[#0b1220]">Bar</option>
-          <option value="line" className="bg-[#0b1220]">Line</option>
+          <option value="area" className="bg-[var(--color-bg-primary)]">Area</option>
+          <option value="bar" className="bg-[var(--color-bg-primary)]">Bar</option>
+          <option value="line" className="bg-[var(--color-bg-primary)]">Line</option>
+          <option value="status" className="bg-[var(--color-bg-primary)]">Status Stack</option>
         </select>
         <ClearableInput
           className="min-w-[160px]"
-          inputClassName="h-9 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-xs text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50"
+          inputClassName="h-9 w-full rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 text-xs text-[var(--color-text-primary)] outline-none transition focus:ring-2 focus:ring-[var(--focus-ring)]"
           placeholder="Merchant ID"
           value={dashboardMerchantId}
           onChange={(e) => setDashboardMerchantId(e.target.value)}
         />
         <ClearableInput
           className="min-w-[200px]"
-          inputClassName="h-9 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-xs text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50"
+          inputClassName="h-9 w-full rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 text-xs text-[var(--color-text-primary)] outline-none transition focus:ring-2 focus:ring-[var(--focus-ring)]"
           placeholder="Merchant Name"
           value={dashboardMerchantName}
           onChange={(e) => setDashboardMerchantName(e.target.value)}
         />
         <ClearableInput
           className="min-w-[220px]"
-          inputClassName="h-9 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-xs text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50"
+          inputClassName="h-9 w-full rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 text-xs text-[var(--color-text-primary)] outline-none transition focus:ring-2 focus:ring-[var(--focus-ring)]"
           placeholder="Merchant Email"
           value={dashboardMerchantEmail}
           onChange={(e) => setDashboardMerchantEmail(e.target.value)}
         />
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_0.6fr] gap-4 w-full">
-        <Card title="Payments Overview" right={<Pill>{presetLabel}</Pill>}>
-          <div className="text-sm text-[#a9b7d4]/70 mb-3">Total Transactions</div>
-          <div className="text-3xl font-semibold">{getValue('totalPayments')}</div>
-          <div className="relative mt-4 h-[220px] sm:h-[260px] rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-            <ResponsiveContainer width="100%" height="100%">
-              {chartType === 'bar' ? (
-                <BarChart data={chartRows} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                  <XAxis dataKey="day" stroke="#a9b7d4" tickLine={false} axisLine={false} />
-                  <YAxis stroke="#a9b7d4" tickLine={false} axisLine={false} width={30} />
-                  <Tooltip
-                    contentStyle={{
-                      background: '#1f2435',
-                      border: '1px solid rgba(255,255,255,0.12)',
-                      borderRadius: 12,
-                      color: '#eaf1ff',
-                    }}
-                    labelStyle={{ color: '#a9b7d4' }}
-                    formatter={(value) => [Number(value).toLocaleString(), 'Transactions']}
-                  />
-                  <Bar dataKey="transactions" fill="#5aa7ff" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              ) : chartType === 'line' ? (
-                <LineChart data={chartRows} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                  <XAxis dataKey="day" stroke="#a9b7d4" tickLine={false} axisLine={false} />
-                  <YAxis stroke="#a9b7d4" tickLine={false} axisLine={false} width={30} />
-                  <Tooltip
-                    contentStyle={{
-                      background: '#1f2435',
-                      border: '1px solid rgba(255,255,255,0.12)',
-                      borderRadius: 12,
-                      color: '#eaf1ff',
-                    }}
-                    labelStyle={{ color: '#a9b7d4' }}
-                    formatter={(value) => [Number(value).toLocaleString(), 'Transactions']}
-                  />
-                  <Line type="monotone" dataKey="transactions" stroke="#5aa7ff" strokeWidth={2} dot={false} />
-                </LineChart>
-              ) : (
-                <AreaChart data={chartRows} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#5aa7ff" stopOpacity={0.35} />
-                      <stop offset="95%" stopColor="#5aa7ff" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                  <XAxis dataKey="day" stroke="#a9b7d4" tickLine={false} axisLine={false} />
-                  <YAxis stroke="#a9b7d4" tickLine={false} axisLine={false} width={30} />
-                  <Tooltip
-                    contentStyle={{
-                      background: '#1f2435',
-                      border: '1px solid rgba(255,255,255,0.12)',
-                      borderRadius: 12,
-                      color: '#eaf1ff',
-                    }}
-                    labelStyle={{ color: '#a9b7d4' }}
-                    formatter={(value) => [Number(value).toLocaleString(), 'Transactions']}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="transactions"
-                    stroke="#5aa7ff"
-                    strokeWidth={2}
-                    fill="url(#colorVolume)"
-                  />
-                </AreaChart>
-              )}
-            </ResponsiveContainer>
-            {chartEmpty && !chartFailed && (
-              <div className="absolute inset-0 grid place-items-center text-xs text-[#a9b7d4]/70">
-                No chart data for selected range.
-              </div>
-            )}
-          </div>
-        </Card>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3">
-          {['totalMerchants', 'activeMerchants', 'blockedMerchants', 'totalSubMerchants'].map((key) => {
-            const meta = METRIC_CARDS.find((m) => m.key === key)
-            return (
-              <Card key={key} title={meta?.label} right={<TrendPill value={trends[key] || 0} />}>
-                <div className="text-2xl font-semibold">{getValue(key)}</div>
-                <div className="mt-2 text-xs text-[#a9b7d4]/70">Filtered by date</div>
-              </Card>
-            )
-          })}
+        <div className="ml-auto shrink-0 inline-flex items-center gap-2 rounded-full border border-[var(--color-border-soft)] bg-white/[0.03] px-3 py-1 text-[10px] text-[var(--color-text-secondary)]/80 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+          <span className="inline-flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80" />
+            Auto refresh
+          </span>
+          <span className="text-[var(--color-text-primary)]">{refreshCountdown}s</span>
+          <span className="text-[var(--color-text-secondary)]/50">|</span>
+          <span>Updated {lastUpdatedLabel}</span>
         </div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 w-full">
+        {primaryKeys.map((key) => {
+          const meta = METRIC_CARDS.find((m) => m.key === key)
+          return (
+            <Card
+              key={key}
+              title={meta?.label}
+              right={showTrendBadges ? <TrendPill value={0} /> : null}
+              className="bg-gradient-to-br from-[var(--color-bg-secondary)]/60 via-[var(--color-bg-primary)]/85 to-[var(--color-bg-primary)] border-[var(--color-border-soft)]"
+            >
+              <div className="text-3xl sm:text-4xl font-semibold leading-tight break-words">
+                {getValue(key, meta?.format)}
+              </div>
+              <div className="mt-2 text-xs text-[var(--color-text-secondary)]/70">{presetLabel}</div>
+            </Card>
+          )
+        })}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 w-full">
-        {METRIC_CARDS.filter((m) => !['totalMerchants', 'activeMerchants', 'blockedMerchants', 'totalSubMerchants'].includes(m.key)).map((m) => (
-          <Card key={m.key} title={m.label} right={<TrendPill value={trends[m.key] || 0} />}>
-            <div className="text-2xl font-semibold">
+        {secondaryKeys.map((key) => {
+          const meta = METRIC_CARDS.find((m) => m.key === key)
+          return (
+            <Card
+              key={key}
+              title={meta?.label}
+              right={showTrendBadges ? <TrendPill value={0} /> : null}
+              className="bg-gradient-to-br from-[var(--color-bg-secondary)]/70 via-[var(--color-bg-primary)]/90 to-[var(--color-bg-primary)] border-[var(--color-border-soft)]"
+            >
+              <div className="text-2xl font-semibold leading-tight break-words">
+                {getValue(key, meta?.format)}
+              </div>
+              <div className="mt-2 text-xs text-[var(--color-text-secondary)]/70">{presetLabel}</div>
+            </Card>
+          )
+        })}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 w-full items-start">
+        <Card
+          title="Payments Overview"
+          className="bg-gradient-to-br from-[var(--color-bg-secondary)]/70 via-[var(--color-bg-primary)]/90 to-[var(--color-bg-primary)] border-[var(--color-border-soft)] shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
+          right={(
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <Pill>{presetLabel}</Pill>
+              <select
+                className="h-7 rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-2 text-[11px] text-[var(--color-text-primary)] outline-none transition focus:ring-2 focus:ring-[var(--focus-ring)]"
+                value={overviewMetric}
+                onChange={(e) => setOverviewMetric(e.target.value)}
+              >
+                <option value="transactions" className="bg-[var(--color-bg-primary)]">Transactions</option>
+                <option value="amount" className="bg-[var(--color-bg-primary)]">Amount</option>
+              </select>
+              <select
+                className="h-7 rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-2 text-[11px] text-[var(--color-text-primary)] outline-none transition focus:ring-2 focus:ring-[var(--focus-ring)] disabled:opacity-60"
+                value={overviewStatus}
+                onChange={(e) => setOverviewStatus(e.target.value)}
+                disabled={overviewMetric === 'amount'}
+              >
+                {OVERVIEW_STATUS_OPTIONS.map((opt) => (
+                  <option key={opt.key} value={opt.key} className="bg-[var(--color-bg-primary)]">{opt.label}</option>
+                ))}
+              </select>
+              <select
+                className="h-7 rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-2 text-[11px] text-[var(--color-text-primary)] outline-none transition focus:ring-2 focus:ring-[var(--focus-ring)]"
+                value={chartType}
+                onChange={(e) => setChartType(e.target.value)}
+              >
+                <option value="area" className="bg-[var(--color-bg-primary)]">Area</option>
+                <option value="bar" className="bg-[var(--color-bg-primary)]">Bar</option>
+                <option value="line" className="bg-[var(--color-bg-primary)]">Line</option>
+                <option value="scatter" className="bg-[var(--color-bg-primary)]">Scatter</option>
+                <option value="composed" className="bg-[var(--color-bg-primary)]">Composed</option>
+                <option value="status" className="bg-[var(--color-bg-primary)]">Status Stack</option>
+              </select>
+              <button
+                type="button"
+                aria-label={overviewCollapsed ? 'Expand chart' : 'Collapse chart'}
+                className="h-7 w-7 grid place-items-center rounded-lg border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] transition shrink-0 relative z-10"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setOverviewCollapsed((prev) => !prev)
+                }}
+              >
+                {overviewCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+              </button>
+            </div>
+          )}
+        >
+          <div className="text-xs uppercase tracking-[0.18em] text-[var(--color-text-muted)] mb-2">
+            {resolvedOverviewStatus === 'total'
+              ? (overviewMetric === 'amount' ? 'Total Amount' : 'Total Transactions')
+              : `${overviewLabel} Transactions`}
+          </div>
+          <div className="text-3xl sm:text-4xl font-semibold leading-tight break-words">
+            {overviewTotalLabel}
+          </div>
+          {overviewMetric === 'amount' && (
+            <div className="mt-1 text-[11px] text-[var(--color-text-secondary)]/70">
+              Status filter applies to transactions only.
+            </div>
+          )}
+          {!overviewCollapsed ? (
+            <>
+              <div className="relative mt-4 h-[220px] sm:h-[280px] lg:h-[320px] rounded-xl border border-[var(--color-border-soft)] bg-gradient-to-b from-[var(--color-bg-primary)]/60 to-[var(--color-bg-secondary)]/80 px-3 py-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  {chartType === 'status' ? (
+                    <BarChart data={chartRowsWithOther} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+                      <XAxis dataKey="day" stroke="var(--color-text-secondary)" tickLine={false} axisLine={false} />
+                      <YAxis
+                        stroke="var(--color-text-secondary)"
+                        tickLine={false}
+                        axisLine={false}
+                        width={52}
+                        tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--color-surface)',
+                          border: '1px solid var(--color-chart-tooltip-border)',
+                          borderRadius: 12,
+                          color: 'var(--color-text-primary)',
+                        }}
+                        labelStyle={{ color: 'var(--color-text-secondary)' }}
+                        formatter={(value, name) => [
+                          Number(value).toLocaleString(),
+                          STATUS_STACK_SERIES.find((series) => series.key === name)?.label || name,
+                        ]}
+                      />
+                      <Legend />
+                      {STATUS_STACK_SERIES.map((series) => (
+                        <Bar
+                          key={series.key}
+                          dataKey={series.key}
+                          stackId="status"
+                          fill={series.color}
+                          radius={[6, 6, 0, 0]}
+                        />
+                      ))}
+                    </BarChart>
+                  ) : chartType === 'bar' ? (
+                    <BarChart data={showAllStatuses ? chartRowsWithOther : chartRows} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+                      <XAxis dataKey="day" stroke="var(--color-text-secondary)" tickLine={false} axisLine={false} />
+                      <YAxis
+                        stroke="var(--color-text-secondary)"
+                        tickLine={false}
+                        axisLine={false}
+                        width={52}
+                        tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }}
+                        tickFormatter={(value) =>
+                          overviewMetric === 'amount' ? formatCompactRs(value) : value
+                        }
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--color-surface)',
+                          border: '1px solid var(--color-chart-tooltip-border)',
+                          borderRadius: 12,
+                          color: 'var(--color-text-primary)',
+                        }}
+                        labelStyle={{ color: 'var(--color-text-secondary)' }}
+                        formatter={(value, name) => formatOverviewTooltip(value, name)}
+                      />
+                      {showAllStatuses ? (
+                        <>
+                          <Legend />
+                          {STATUS_STACK_SERIES.map((series) => (
+                            <Bar
+                              key={series.key}
+                              dataKey={series.key}
+                              stackId="status"
+                              fill={series.color}
+                              radius={[6, 6, 0, 0]}
+                            />
+                          ))}
+                        </>
+                      ) : (
+                        <Bar
+                          dataKey={overviewDataKey}
+                          fill={overviewSeriesColor}
+                          radius={[6, 6, 0, 0]}
+                        />
+                      )}
+                    </BarChart>
+                  ) : chartType === 'line' ? (
+                    <LineChart data={showAllStatuses ? chartRowsWithOther : chartRows} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+                      <XAxis dataKey="day" stroke="var(--color-text-secondary)" tickLine={false} axisLine={false} />
+                      <YAxis
+                        stroke="var(--color-text-secondary)"
+                        tickLine={false}
+                        axisLine={false}
+                        width={52}
+                        tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }}
+                        tickFormatter={(value) =>
+                          overviewMetric === 'amount' ? formatCompactRs(value) : value
+                        }
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--color-surface)',
+                          border: '1px solid var(--color-chart-tooltip-border)',
+                          borderRadius: 12,
+                          color: 'var(--color-text-primary)',
+                        }}
+                        labelStyle={{ color: 'var(--color-text-secondary)' }}
+                        formatter={(value, name) => formatOverviewTooltip(value, name)}
+                      />
+                      {showAllStatuses ? (
+                        <>
+                          <Legend />
+                          {STATUS_STACK_SERIES.map((series) => (
+                            <Line
+                              key={series.key}
+                              type="monotone"
+                              dataKey={series.key}
+                              stroke={series.color}
+                              strokeWidth={2}
+                              dot={false}
+                            />
+                          ))}
+                        </>
+                      ) : (
+                        <Line
+                          type="monotone"
+                          dataKey={overviewDataKey}
+                          stroke={overviewSeriesColor}
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      )}
+                    </LineChart>
+                  ) : chartType === 'scatter' ? (
+                    <ScatterChart data={showAllStatuses ? chartRowsWithOther : chartRows} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+                      <XAxis dataKey="day" stroke="var(--color-text-secondary)" tickLine={false} axisLine={false} />
+                      <YAxis
+                        stroke="var(--color-text-secondary)"
+                        tickLine={false}
+                        axisLine={false}
+                        width={52}
+                        tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }}
+                        tickFormatter={(value) =>
+                          overviewMetric === 'amount' ? formatCompactRs(value) : value
+                        }
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--color-surface)',
+                          border: '1px solid var(--color-chart-tooltip-border)',
+                          borderRadius: 12,
+                          color: 'var(--color-text-primary)',
+                        }}
+                        labelStyle={{ color: 'var(--color-text-secondary)' }}
+                        formatter={(value, name) => formatOverviewTooltip(value, name)}
+                      />
+                      {showAllStatuses ? (
+                        <>
+                          <Legend />
+                          {STATUS_STACK_SERIES.map((series) => (
+                            <Scatter
+                              key={series.key}
+                              dataKey={series.key}
+                              name={series.label}
+                              fill={series.color}
+                            />
+                          ))}
+                        </>
+                      ) : (
+                        <Scatter
+                          dataKey={overviewDataKey}
+                          fill={overviewSeriesColor}
+                        />
+                      )}
+                    </ScatterChart>
+                  ) : chartType === 'composed' ? (
+                    <ComposedChart data={showAllStatuses ? chartRowsWithOther : chartRows} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+                      <XAxis dataKey="day" stroke="var(--color-text-secondary)" tickLine={false} axisLine={false} />
+                      <YAxis
+                        stroke="var(--color-text-secondary)"
+                        tickLine={false}
+                        axisLine={false}
+                        width={52}
+                        tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }}
+                        tickFormatter={(value) =>
+                          overviewMetric === 'amount' ? formatCompactRs(value) : value
+                        }
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--color-surface)',
+                          border: '1px solid var(--color-chart-tooltip-border)',
+                          borderRadius: 12,
+                          color: 'var(--color-text-primary)',
+                        }}
+                        labelStyle={{ color: 'var(--color-text-secondary)' }}
+                        formatter={(value, name) => formatOverviewTooltip(value, name)}
+                      />
+                      {showAllStatuses ? (
+                        <>
+                          <Legend />
+                          {STATUS_STACK_SERIES.map((series) => (
+                            <Bar
+                              key={series.key}
+                              dataKey={series.key}
+                              stackId="status"
+                              fill={series.color}
+                              radius={[6, 6, 0, 0]}
+                            />
+                          ))}
+                          <Line dataKey="transactions" stroke="var(--color-text-primary)" strokeWidth={2} dot={false} />
+                        </>
+                      ) : (
+                        <>
+                          <Bar dataKey={overviewDataKey} fill={overviewSeriesColor} radius={[6, 6, 0, 0]} />
+                          <Line dataKey={overviewDataKey} stroke={overviewSeriesColor} strokeWidth={2} dot={false} />
+                        </>
+                      )}
+                    </ComposedChart>
+                  ) : (
+                    <AreaChart data={showAllStatuses ? chartRowsWithOther : chartRows} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={overviewSeriesColor} stopOpacity={0.35} />
+                          <stop offset="95%" stopColor={overviewSeriesColor} stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid stroke="var(--color-chart-grid)" vertical={false} />
+                      <XAxis dataKey="day" stroke="var(--color-text-secondary)" tickLine={false} axisLine={false} />
+                      <YAxis
+                        stroke="var(--color-text-secondary)"
+                        tickLine={false}
+                        axisLine={false}
+                        width={52}
+                        tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }}
+                        tickFormatter={(value) =>
+                          overviewMetric === 'amount' ? formatCompactRs(value) : value
+                        }
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: 'var(--color-surface)',
+                          border: '1px solid var(--color-chart-tooltip-border)',
+                          borderRadius: 12,
+                          color: 'var(--color-text-primary)',
+                        }}
+                        labelStyle={{ color: 'var(--color-text-secondary)' }}
+                        formatter={(value, name) => formatOverviewTooltip(value, name)}
+                      />
+                      {showAllStatuses ? (
+                        <>
+                          <Legend />
+                          {STATUS_STACK_SERIES.map((series) => (
+                            <Area
+                              key={series.key}
+                              type="monotone"
+                              dataKey={series.key}
+                              stackId="status"
+                              stroke={series.color}
+                              strokeWidth={2}
+                              fill={series.color}
+                              fillOpacity={0.18}
+                            />
+                          ))}
+                        </>
+                      ) : (
+                        <Area
+                          type="monotone"
+                          dataKey={overviewDataKey}
+                          stroke={overviewSeriesColor}
+                          strokeWidth={2}
+                          fill="url(#colorVolume)"
+                        />
+                      )}
+                    </AreaChart>
+                  )}
+                </ResponsiveContainer>
+                {chartEmpty && !chartFailed && (
+                  <div className="absolute inset-0 grid place-items-center text-xs text-[var(--color-text-secondary)]/70">
+                    No chart data for selected range.
+                  </div>
+                )}
+              </div>
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3 text-sm">
+                <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-success)_35%,transparent)] bg-[var(--color-success-soft)] px-3 py-2">
+                  <div className="text-[11px] uppercase tracking-wide text-[var(--color-success)]">Success</div>
+                  <div className="text-base font-semibold leading-tight break-words">{getValue('successfulPayments')}</div>
+                </div>
+                <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-accent)_35%,transparent)] bg-[var(--color-accent-soft)] px-3 py-2">
+                  <div className="text-[11px] uppercase tracking-wide text-[var(--color-accent)]">Initiated</div>
+                  <div className="text-base font-semibold leading-tight break-words">{initiatedPayments.toLocaleString()}</div>
+                </div>
+                <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-warning)_35%,transparent)] bg-[var(--color-warning-soft)] px-3 py-2">
+                  <div className="text-[11px] uppercase tracking-wide text-[var(--color-warning)]">Pending</div>
+                  <div className="text-base font-semibold leading-tight break-words">{pendingPayments.toLocaleString()}</div>
+                </div>
+                <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-danger)_35%,transparent)] bg-[var(--color-danger-soft)] px-3 py-2">
+                  <div className="text-[11px] uppercase tracking-wide text-[var(--color-danger)]">Failed</div>
+                  <div className="text-base font-semibold leading-tight break-words">{getValue('failedPayments')}</div>
+                </div>
+                <div className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 py-2">
+                  <div className="text-[11px] uppercase tracking-wide text-[var(--color-text-secondary)]">Other</div>
+                  <div className="text-base font-semibold leading-tight break-words">{otherPayments.toLocaleString()}</div>
+                </div>
+                <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-accent)_30%,transparent)] bg-[var(--color-accent-soft)] px-3 py-2">
+                  <div className="text-[11px] uppercase tracking-wide text-[var(--color-accent)]">Refunds</div>
+                  <div className="text-base font-semibold leading-tight break-words">{getValue('totalRefunds')}</div>
+                </div>
+                <div className="rounded-xl border border-[color-mix(in_srgb,var(--color-warning)_35%,transparent)] bg-[var(--color-warning-soft)] px-3 py-2">
+                  <div className="text-[11px] uppercase tracking-wide text-[var(--color-warning)]">Due</div>
+                  <div className="text-base font-semibold leading-tight break-words">{getValue('dueSettlementAmount', 'currency')}</div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="mt-3 text-xs text-[var(--color-text-secondary)]/70">Chart collapsed.</div>
+          )}
+        </Card>
+      </div>
+
+      <Card
+        title="Merchant Health"
+        right={<Pill>{presetLabel}</Pill>}
+        className="bg-gradient-to-br from-[var(--color-bg-primary)]/90 via-[var(--color-bg-secondary)]/80 to-[var(--color-bg-primary)] border-[var(--color-border-soft)]"
+      >
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+          <button
+            type="button"
+            className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
+            onClick={() => setAdminDashboardNavigation('page-merchants')}
+          >
+            <div className="text-[11px] uppercase tracking-wide text-[var(--color-text-secondary)]/70">Total</div>
+            <div className="text-base font-semibold leading-tight break-words">{getValue('totalMerchants')}</div>
+          </button>
+          <button
+            type="button"
+            className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
+            onClick={() => setAdminDashboardNavigation('page-merchants', { status: 'active' })}
+          >
+            <div className="text-[11px] uppercase tracking-wide text-[var(--color-text-secondary)]/70">Active</div>
+            <div className="text-base font-semibold leading-tight break-words">{getValue('activeMerchants')}</div>
+          </button>
+          <button
+            type="button"
+            className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
+            onClick={() => setAdminDashboardNavigation('page-merchants', { status: 'blocked' })}
+          >
+            <div className="text-[11px] uppercase tracking-wide text-[var(--color-text-secondary)]/70">Blocked</div>
+            <div className="text-base font-semibold leading-tight break-words text-[var(--color-danger)]">{getValue('blockedMerchants')}</div>
+          </button>
+          <button
+            type="button"
+            className="rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
+            onClick={() => setAdminDashboardNavigation('page-submerchants')}
+          >
+            <div className="text-[10px] sm:text-[11px] uppercase tracking-wide text-[var(--color-text-secondary)]/70 whitespace-normal">Sub-Merchants</div>
+            <div className="text-base font-semibold leading-tight break-words">{getValue('totalSubMerchants')}</div>
+          </button>
+        </div>
+        <div className="mt-3 text-xs text-[var(--color-text-secondary)]/70">Filtered by date</div>
+      </Card>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 w-full">
+        {remainingMetrics.map((m) => (
+          <Card
+            key={m.key}
+            title={m.label}
+            right={showTrendBadges ? <TrendPill value={0} /> : null}
+            className="bg-gradient-to-br from-[var(--color-bg-primary)]/90 via-[var(--color-bg-secondary)]/85 to-[var(--color-bg-primary)] border-[var(--color-border-soft)]"
+          >
+            <div className="text-2xl font-semibold leading-tight break-words">
               {getValue(m.key, m.format)}
             </div>
-            <div className="mt-3">
-              <Sparkline
-                data={SPARKLINES[m.key] || [2, 3, 2, 4, 3, 5, 4, 6]}
-                tone={trends[m.key] < 0 ? 'bad' : 'good'}
-              />
-            </div>
-            <div className="mt-1 text-xs text-[#a9b7d4]/70">
+            {showSparklines ? (
+              <div className="mt-3">
+                <Sparkline
+                  data={SPARKLINES[m.key] || [2, 3, 2, 4, 3, 5, 4, 6]}
+                  tone="good"
+                />
+              </div>
+            ) : (
+              <div className="mt-3 text-xs text-[var(--color-text-secondary)]/60">No trend data.</div>
+            )}
+            <div className="mt-1 text-xs text-[var(--color-text-secondary)]/70">
               {datePreset === 'all' ? 'All Time' : 'Filtered by date'}
             </div>
           </Card>
@@ -965,84 +1721,19 @@ export function DashboardSection() {
       <DashboardInsights
         dateLabel={presetLabel}
         datePreset={datePreset}
-        trendDataOverride={chartRows.map((row) => ({ label: row.day, transactions: row.transactions }))}
+        trendDataOverride={chartRows.map((row) => ({
+          label: row.day,
+          transactions: row.transactions,
+          success: row.successCount && row.transactions ? row.successCount / row.transactions : 0,
+          successCount: row.successCount,
+          failedCount: row.failedCount,
+        }))}
         dashboardMetrics={data}
       />
-      <div className="pt-2 text-center text-xs text-[#a9b7d4]/70">Ac AssanPay Admin Portal UI Template (React)</div>
+      <div className="pt-2 text-center text-xs text-[var(--color-text-secondary)]/70">Ac AssanPay Admin Portal UI Template (React)</div>
 
-      {customOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 px-4">
-          <div className="w-full max-w-[520px] rounded-2xl border border-white/10 bg-[#2b2f45] p-6 text-[#eaf1ff] shadow-card">
-            <div className="text-lg font-semibold">Custom Date</div>
-            <div className="mt-5 space-y-4 text-sm text-[#a9b7d4]/85">
-              <div>
-                <div className="mb-2">Date Start</div>
-                <div className="relative">
-                  <input
-                    className="h-10 w-full rounded-xl border border-white/10 bg-black/20 pl-3 pr-16 text-sm text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50"
-                    type="date"
-                    value={customFrom}
-                    onChange={(e) => setCustomFrom(e.target.value)}
-                  />
-                  {customFrom && (
-                    <button
-                      type="button"
-                      aria-label="Clear start date"
-                      className="absolute right-8 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full border border-white/10 bg-white/[0.04] text-[#a9b7d4] hover:text-[#eaf1ff] hover:bg-white/[0.08] transition grid place-items-center"
-                      onClick={() => setCustomFrom('')}
-                    >
-                      <X size={12} />
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div>
-                <div className="mb-2">Date End</div>
-                <div className="relative">
-                  <input
-                    className="h-10 w-full rounded-xl border border-white/10 bg-black/20 pl-3 pr-16 text-sm text-[#eaf1ff] outline-none transition focus:ring-2 focus:ring-[#5aa7ff]/50"
-                    type="date"
-                    value={customTo}
-                    onChange={(e) => setCustomTo(e.target.value)}
-                  />
-                  {customTo && (
-                    <button
-                      type="button"
-                      aria-label="Clear end date"
-                      className="absolute right-8 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full border border-white/10 bg-white/[0.04] text-[#a9b7d4] hover:text-[#eaf1ff] hover:bg-white/[0.08] transition grid place-items-center"
-                      onClick={() => setCustomTo('')}
-                    >
-                      <X size={12} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end gap-3 text-sm">
-              <button
-                className="h-9 px-4 rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.07] transition text-[#eaf1ff]"
-                type="button"
-                onClick={() => {
-                  setCustomOpen(false)
-                  setDatePreset('all')
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                className="h-9 px-4 rounded-xl bg-[#3b82f6] hover:bg-[#2f6fd6] transition text-white font-semibold"
-                type="button"
-                onClick={() => {
-                  setCustomOpen(false)
-                  setDatePreset('custom')
-                }}
-              >
-                Apply
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
+
+

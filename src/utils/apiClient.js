@@ -1,6 +1,17 @@
+import { pushToast } from './toastStore'
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
 const TOKEN_KEY = 'assanpay_token'
+const REQUEST_ID_HEADER = 'X-REQUEST-ID'
+const SESSION_EXPIRED_KEY = 'assanpay_session_expired'
+
+const buildRequestId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
 
 export function getAuthToken() {
   return localStorage.getItem(TOKEN_KEY)
@@ -21,8 +32,10 @@ export async function apiRequest(
   { method = 'GET', body, headers = {}, auth = true } = {}
 ) {
   const url = `${API_BASE_URL}${path}`
+  const requestId = buildRequestId()
   const finalHeaders = {
     'Content-Type': 'application/json',
+    [REQUEST_ID_HEADER]: requestId,
     ...headers,
   }
 
@@ -60,6 +73,28 @@ export async function apiRequest(
     const error = new Error(message)
     error.status = response.status
     error.data = data
+    error.requestId = response.headers.get(REQUEST_ID_HEADER) || requestId
+    error.isRetryable = response.status === 429 || response.status >= 500
+    if (response.status === 401) {
+      clearAuthToken()
+      sessionStorage.setItem(SESSION_EXPIRED_KEY, '1')
+      window.dispatchEvent(new CustomEvent('assanpay:session-expired', { detail: { status: response.status } }))
+      if (window.location.pathname !== '/') {
+        window.location.replace('/')
+      }
+    }
+    if (response.status === 403) {
+      window.dispatchEvent(new CustomEvent('assanpay:forbidden', { detail: { status: response.status } }))
+      if (window.location.pathname !== '/forbidden') {
+        window.location.replace('/forbidden')
+      }
+    }
+    if (response.status === 429 || response.status >= 500) {
+      pushToast({
+        message: 'Service is temporarily unavailable. Please retry in a moment.',
+        requestId: error.requestId,
+      })
+    }
     throw error
   }
 

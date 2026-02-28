@@ -1,26 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import { Laptop, Moon, Sun } from 'lucide-react'
-
-const STORAGE_KEY = 'assanpay-theme'
-
-const getSystemTheme = () => {
-  if (typeof window === 'undefined') return 'dark'
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-}
-
-const applyTheme = (theme) => {
-  const resolved = theme === 'system' ? getSystemTheme() : theme
-  document.documentElement.setAttribute('data-theme', resolved)
-  document.documentElement.setAttribute('data-theme-mode', theme)
-}
+import {
+  THEME_DARK,
+  THEME_LIGHT,
+  THEME_SYSTEM,
+  applyTheme,
+  getStoredThemeMode,
+  getSystemTheme,
+  persistThemeMode,
+} from '../../theme/theme'
 
 export function ThemeMenu() {
   const [open, setOpen] = useState(false)
-  const [theme, setTheme] = useState('dark')
+  const [theme, setTheme] = useState(THEME_SYSTEM)
   const menuRef = useRef(null)
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY) || 'system'
+    const saved = getStoredThemeMode()
     setTheme(saved)
     applyTheme(saved)
   }, [])
@@ -28,7 +24,7 @@ export function ThemeMenu() {
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const handler = () => {
-      if (theme === 'system') applyTheme('system')
+      if (theme === THEME_SYSTEM) applyTheme(THEME_SYSTEM)
     }
     mq.addEventListener?.('change', handler)
     return () => mq.removeEventListener?.('change', handler)
@@ -45,46 +41,46 @@ export function ThemeMenu() {
   }, [open])
 
   const setAndClose = (next) => {
-    localStorage.setItem(STORAGE_KEY, next)
+    persistThemeMode(next)
     setTheme(next)
     applyTheme(next)
     setOpen(false)
   }
 
-  const resolved = theme === 'system' ? getSystemTheme() : theme
+  const resolved = theme === THEME_SYSTEM ? getSystemTheme() : theme
 
   return (
     <div className="relative" ref={menuRef}>
       <button
-        className="h-9 w-9 rounded-xl border border-white/10 bg-white/[0.04] grid place-items-center text-[#a9b7d4] hover:bg-white/[0.08] transition"
+        className="h-9 w-9 rounded-xl border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] grid place-items-center text-[var(--color-text-secondary)] hover:bg-[var(--color-surface)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label="Theme"
       >
-        {resolved === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
+        {resolved === THEME_DARK ? <Moon size={16} /> : <Sun size={16} />}
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-44 rounded-2xl border border-white/10 bg-[#1f2435] shadow-card overflow-hidden">
+        <div className="absolute right-0 mt-2 w-44 rounded-2xl border border-[var(--color-border-soft)] bg-[var(--color-surface)] shadow-card overflow-hidden">
           <button
-            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#eaf1ff] hover:bg-white/[0.06] transition"
+            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-surface-muted)]"
             type="button"
-            onClick={() => setAndClose('light')}
+            onClick={() => setAndClose(THEME_LIGHT)}
           >
             <Sun size={14} />
             Light
           </button>
           <button
-            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#eaf1ff] hover:bg-white/[0.06] transition"
+            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-surface-muted)]"
             type="button"
-            onClick={() => setAndClose('dark')}
+            onClick={() => setAndClose(THEME_DARK)}
           >
             <Moon size={14} />
             Dark
           </button>
           <button
-            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#eaf1ff] hover:bg-white/[0.06] transition"
+            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-surface-muted)]"
             type="button"
-            onClick={() => setAndClose('system')}
+            onClick={() => setAndClose(THEME_SYSTEM)}
           >
             <Laptop size={14} />
             System

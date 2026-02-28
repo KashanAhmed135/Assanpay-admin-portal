@@ -14,13 +14,13 @@ export function PasswordInput({
 }) {
     return (
         <div className="grid gap-1.5 sm:gap-2 md:gap-[6px]">
-            <label htmlFor={id} className="text-xs sm:text-[13px] text-[#a9b7d4]/95">
+            <label htmlFor={id} className="text-xs sm:text-[13px] text-[var(--color-text-secondary)]/95">
                 {label}
             </label>
 
             <div className="relative">
                 <input
-                    className="p-3 sm:p-[12px_14px] pr-12 rounded-[14px] border border-white/12 bg-black/20 text-[#eaf1ff] placeholder:text-[#a9b7d4]/55 focus:outline-none focus:ring-2 focus:ring-[#5aa7ff] focus:ring-offset-2 focus:ring-offset-[#0b1220] text-sm sm:text-base w-full"
+                    className="p-3 sm:p-[12px_14px] pr-12 rounded-[14px] border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-secondary)]/55 focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)] focus:ring-offset-2 focus:ring-offset-[var(--color-bg-primary)] text-sm sm:text-base w-full"
                     id={id}
                     type={showPassword ? 'text' : 'password'}
                     placeholder={placeholder}
@@ -32,7 +32,7 @@ export function PasswordInput({
                 <button
                     type="button"
                     onClick={onToggleShow}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#a9b7d4] hover:text-[#eaf1ff] transition"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -40,7 +40,7 @@ export function PasswordInput({
             </div>
 
             {helperText && (
-                <div className="text-[#a9b7d4]/80 text-[10px] sm:text-xs md:text-[12px]">{helperText}</div>
+                <div className="text-[var(--color-text-secondary)]/80 text-[10px] sm:text-xs md:text-[12px]">{helperText}</div>
             )}
 
             {error && (

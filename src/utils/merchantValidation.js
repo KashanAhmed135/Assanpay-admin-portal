@@ -8,7 +8,7 @@ export const USERNAME_PATTERN = '^[A-Za-z0-9][A-Za-z0-9._@-]{2,59}$'
 export const PASSWORD_PATTERN = '^(?=.*[A-Za-z])(?=.*\\d).{8,}$'
 export const COMMISSION_PERCENT_PATTERN = '^(100(\\.0{1,2})?|\\d{1,2}(\\.\\d{1,2})?)$'
 export const COMMISSION_AMOUNT_PATTERN = '^\\d{1,9}(\\.\\d{1,2})?$'
-export const LIMIT_AMOUNT_PATTERN = '^\\d{1,12}(\\.\\d{1,2})?$'
+export const LIMIT_AMOUNT_PATTERN = '^(?:-1|\\d{1,12}(\\.\\d{1,2})?)$'
 
 export const ALLOWED_PHONE_TYPES = new Set(['MOBILE', 'FIXED_LINE_OR_MOBILE'])
 
@@ -54,8 +54,8 @@ export function validateMerchantFormData(data, phoneError) {
         errors.push(phoneError)
     }
 
-    if (data.business_email && !validateEmail(data.business_email)) {
-        errors.push('Please enter a valid business email address.')
+    if (data.legal_email && !validateEmail(data.legal_email)) {
+        errors.push('Please enter a valid legal email address.')
     }
 
     if (data.admin_email && !validateEmail(data.admin_email)) {

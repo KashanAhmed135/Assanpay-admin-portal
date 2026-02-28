@@ -101,9 +101,9 @@ export let reportsData = readStorage('assanpay:reports', [
 export const SHOP_OPTIONS = ['Branch-01', 'Branch-02', 'Branch-03']
 export const COLLECTION_STATUS_OPTIONS = ['SUCCESS', 'PENDING', 'FAILED']
 export const REFUND_STATUS_OPTIONS = ['REQUESTED', 'APPROVED', 'REJECTED']
-export const SETTLEMENT_STATUS_OPTIONS = ['PENDING', 'PAID', 'FAILED']
+export const SETTLEMENT_STATUS_OPTIONS = ['CREATED', 'PENDING', 'COMPLETED', 'FAILED', 'CANCELLED']
 export const USER_ROLE_OPTIONS = ['MERCHANT_ADMIN', 'SHOP_OPERATOR']
-export const USER_STATUS_OPTIONS = ['Active', 'Blocked']
+export const USER_STATUS_OPTIONS = ['Active', 'Blocked', 'No User']
 export const SUB_MERCHANT_STATUS_OPTIONS = ['Active', 'Blocked', 'Watch']
 
 export const settlementReportsData = readStorage('assanpay:settlementReports', [

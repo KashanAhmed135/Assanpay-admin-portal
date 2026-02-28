@@ -35,6 +35,12 @@ export const PAGE_CONFIG = {
         btnText: 'Reports',
         btnHref: '#reports',
     },
+    'balance': {
+        title: 'Balance',
+        crumbs: 'Merchant / Finance / Balance',
+        btnText: 'Settlements',
+        btnHref: '#settlements',
+    },
     'reports': {
         title: 'Reports',
         crumbs: 'Merchant / Finance / Reports',
@@ -44,8 +50,18 @@ export const PAGE_CONFIG = {
     'users-roles': {
         title: 'Users & Roles',
         crumbs: 'Merchant / Settings / Users & Roles',
-        btnText: '+ Add User',
+    },
+    'api-keys': {
+        title: 'API Keys',
+        crumbs: 'Merchant / Settings / API Keys',
+        btnText: 'Users & Roles',
         btnHref: '#users-roles',
+    },
+    'security': {
+        title: 'Change Password',
+        crumbs: 'Merchant / Settings / Change Password',
+        btnText: 'API Keys',
+        btnHref: '#api-keys',
     },
 }
 
